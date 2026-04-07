@@ -1,17 +1,49 @@
+# Maven
 target/
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.versionsBackup
-pom.xml.next
-release.properties
-dependency-reduced-pom.xml
-buildNumber.properties
-.mvn/timing.properties
-# https://maven.apache.org/wrapper/#usage-without-binary-jar
+*.class
+*.jar
+*.war
+*.ear
 .mvn/wrapper/maven-wrapper.jar
 
-# Eclipse m2e generated files
-# Eclipse Core
-.project
-# JDT-specific (Eclipse Java Development Tools)
-.classpath
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Spring Boot
+*.log
+logs/
+
+# Docker volumes (locale)
+data/
+
+# Environment files (nu le urca niciodata)
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+.pytest_cache/
+
+# Node / React
+node_modules/
+frontend/build/
+frontend/dist/
+.next/
+
+# RocksDB local data
+rocksdb-data/
+
+# OS
+Thumbs.db

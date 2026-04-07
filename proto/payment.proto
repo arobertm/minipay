@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package ro.minipay;
+
+option java_package = "ro.minipay.proto";
+option java_outer_classname = "PaymentProto";
+
+// ─── Gateway → Vault ──────────────────────────────────────────
+service VaultService {
+  rpc Tokenize(TokenizeRequest) returns (TokenizeResponse);
+  rpc Detokenize(DetokenizeRequest) returns (DetokenizeResponse);
+}
+
+message TokenizeRequest {
+  string pan = 1;           // Primary Account Number
+  string expiry = 2;        // MM/YY
+  string cvv = 3;
+  string merchant_id = 4;
+}
+
+message TokenizeResponse {
+  string dpan = 1;          // Device/Digital PAN (token)
+  string token_id = 2;
+}
+
+message DetokenizeRequest {
+  string dpan = 1;
+  string merchant_id = 2;
+}
+
+message DetokenizeResponse {
+  string pan = 1;
+  string expiry = 2;
+}
+
+// ─── Gateway → Network ────────────────────────────────────────
+service NetworkService {
+  rpc Authorize(AuthorizationRequest) returns (AuthorizationResponse);
+}
+
+message AuthorizationRequest {
+  string mti = 1;           // "0100"
+  string dpan = 2;
+  int64  amount = 3;        // in bani (cents)
+  string currency = 4;      // "RON", "EUR"
+  string merchant_id = 5;
+  string terminal_id = 6;
+  string stan = 7;          // System Trace Audit Number
+  string rrn = 8;           // Retrieval Reference Number
+  string timestamp = 9;
+  string cavv = 10;         // 3DS2 authentication value
+}
+
+message AuthorizationResponse {
+  string mti = 1;           // "0110"
+  string auth_code = 2;     // daca aprobat
+  string response_code = 3; // "00"=ok, "51"=insuf, "05"=declined
+  string rrn = 4;
+}
+
+// ─── Gateway → Fraud ──────────────────────────────────────────
+service FraudService {
+  rpc Score(FraudRequest) returns (FraudResponse);
+}
+
+message FraudRequest {
+  string transaction_id = 1;
+  string dpan = 2;
+  int64  amount = 3;
+  string currency = 4;
+  string merchant_id = 5;
+  string ip_address = 6;
+  string country = 7;
+  string timestamp = 8;
+  string user_id = 9;
+}
+
+message FraudResponse {
+  string transaction_id = 1;
+  double fraud_score = 2;       // 0.0 - 1.0
+  string decision = 3;          // ALLOW, REVIEW, BLOCK
+  repeated FraudReason reasons = 4;
+}
+
+message FraudReason {
+  string feature = 1;           // ex: "ip_country_mismatch"
+  double shap_value = 2;        // contributia la scor
+  string description = 3;       // ex: "IP din tara diferita de card"
+}

@@ -1,0 +1,338 @@
+version: '3.9'
+
+# Servicii MiniPay cu profiles
+# Foloseste: docker compose --profile auth up
+#            docker compose --profile payments up
+#            docker compose --profile all up
+
+include:
+  - docker-compose.infra.yml
+
+services:
+
+  # ═══════════════════════════════════════════════
+  # IDENTITY DOMAIN
+  # ═══════════════════════════════════════════════
+
+  auth-svc:
+    build:
+      context: ./services/auth-svc
+      dockerfile: Dockerfile
+    container_name: minipay-auth
+    profiles: ["auth", "all"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/minipay_auth
+      SPRING_DATASOURCE_USERNAME: minipay
+      SPRING_DATASOURCE_PASSWORD: minipay_secret
+      VAULT_URI: http://vault:8200
+      VAULT_TOKEN: minipay-vault-token
+      SERVER_PORT: 8081
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+    networks:
+      - minipay-net
+
+  user-svc:
+    build:
+      context: ./services/user-svc
+      dockerfile: Dockerfile
+    container_name: minipay-user
+    profiles: ["auth", "all"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/minipay_users
+      SPRING_DATASOURCE_USERNAME: minipay
+      SPRING_DATASOURCE_PASSWORD: minipay_secret
+      SERVER_PORT: 8082
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - minipay-net
+
+  session-svc:
+    build:
+      context: ./services/session-svc
+      dockerfile: Dockerfile
+    container_name: minipay-session
+    profiles: ["auth", "all"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/minipay_sessions
+      SPRING_DATASOURCE_USERNAME: minipay
+      SPRING_DATASOURCE_PASSWORD: minipay_secret
+      SERVER_PORT: 8083
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - minipay-net
+
+  # ═══════════════════════════════════════════════
+  # PAYMENTS DOMAIN
+  # ═══════════════════════════════════════════════
+
+  gateway-svc:
+    build:
+      context: ./services/gateway-svc
+      dockerfile: Dockerfile
+    container_name: minipay-gateway
+    profiles: ["payments", "all"]
+    environment:
+      SERVER_PORT: 8084
+      GRPC_VAULT_ADDRESS: vault-svc:9085
+      GRPC_FRAUD_ADDRESS: fraud-svc:9090
+      GRPC_NETWORK_ADDRESS: network-svc:9086
+      GRPC_TDS_ADDRESS: tds-svc:9088
+      AUTH_JWKS_URI: http://auth-svc:8081/oauth2/jwks
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8084:8084"
+    depends_on:
+      - kafka
+    networks:
+      - minipay-net
+
+  vault-svc:
+    build:
+      context: ./services/vault-svc
+      dockerfile: Dockerfile
+    container_name: minipay-vault-svc
+    profiles: ["payments", "all"]
+    environment:
+      SERVER_PORT: 8085
+      MINIDS_ADDRESS: minids-0:8301
+      VAULT_URI: http://vault:8200
+      VAULT_TOKEN: minipay-vault-token
+    ports:
+      - "8085:8085"
+    depends_on:
+      vault:
+        condition: service_healthy
+    networks:
+      - minipay-net
+
+  network-svc:
+    build:
+      context: ./services/network-svc
+      dockerfile: Dockerfile
+    container_name: minipay-network
+    profiles: ["payments", "all"]
+    environment:
+      SERVER_PORT: 8086
+      GRPC_ISSUER_ADDRESS: issuer-svc:9087
+    ports:
+      - "8086:8086"
+    networks:
+      - minipay-net
+
+  issuer-svc:
+    build:
+      context: ./services/issuer-svc
+      dockerfile: Dockerfile
+    container_name: minipay-issuer
+    profiles: ["payments", "all"]
+    environment:
+      SERVER_PORT: 8087
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/minipay_issuer
+      SPRING_DATASOURCE_USERNAME: minipay
+      SPRING_DATASOURCE_PASSWORD: minipay_secret
+    ports:
+      - "8087:8087"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - minipay-net
+
+  tds-svc:
+    build:
+      context: ./services/tds-svc
+      dockerfile: Dockerfile
+    container_name: minipay-tds
+    profiles: ["payments", "all"]
+    environment:
+      SERVER_PORT: 8088
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/minipay_tds
+      SPRING_DATASOURCE_USERNAME: minipay
+      SPRING_DATASOURCE_PASSWORD: minipay_secret
+    ports:
+      - "8088:8088"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - minipay-net
+
+  settlement-svc:
+    build:
+      context: ./services/settlement-svc
+      dockerfile: Dockerfile
+    container_name: minipay-settlement
+    profiles: ["payments", "all"]
+    environment:
+      SERVER_PORT: 8089
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/minipay_settlement
+      SPRING_DATASOURCE_USERNAME: minipay
+      SPRING_DATASOURCE_PASSWORD: minipay_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8089:8089"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - minipay-net
+
+  # ═══════════════════════════════════════════════
+  # SECURITY DOMAIN
+  # ═══════════════════════════════════════════════
+
+  fraud-svc:
+    build:
+      context: ./services/fraud-svc
+      dockerfile: Dockerfile
+    container_name: minipay-fraud
+    profiles: ["fraud", "all"]
+    environment:
+      PORT: 8090
+    ports:
+      - "8090:8090"
+    networks:
+      - minipay-net
+
+  audit-svc:
+    build:
+      context: ./services/audit-svc
+      dockerfile: Dockerfile
+    container_name: minipay-audit
+    profiles: ["fraud", "all"]
+    environment:
+      SERVER_PORT: 8091
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/minipay_audit
+      SPRING_DATASOURCE_USERNAME: minipay
+      SPRING_DATASOURCE_PASSWORD: minipay_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8091:8091"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - minipay-net
+
+  psd2-svc:
+    build:
+      context: ./services/psd2-svc
+      dockerfile: Dockerfile
+    container_name: minipay-psd2
+    profiles: ["fraud", "all"]
+    environment:
+      SERVER_PORT: 8092
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/minipay_psd2
+      SPRING_DATASOURCE_USERNAME: minipay
+      SPRING_DATASOURCE_PASSWORD: minipay_secret
+    ports:
+      - "8092:8092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - minipay-net
+
+  notif-svc:
+    build:
+      context: ./services/notif-svc
+      dockerfile: Dockerfile
+    container_name: minipay-notif
+    profiles: ["fraud", "all"]
+    environment:
+      SERVER_PORT: 8093
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8093:8093"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - minipay-net
+
+  # ═══════════════════════════════════════════════
+  # MiniDS — Raft Cluster (3 noduri)
+  # ═══════════════════════════════════════════════
+
+  minids-0:
+    build:
+      context: ./minids
+      dockerfile: Dockerfile
+    container_name: minipay-minids-0
+    profiles: ["payments", "all"]
+    environment:
+      NODE_ID: minids-0
+      RAFT_PORT: 8300
+      API_PORT: 8301
+      RAFT_PEERS: minids-0:8300,minids-1:8310,minids-2:8320
+      DATA_DIR: /data/rocksdb
+    ports:
+      - "8300:8300"
+      - "8301:8301"
+    volumes:
+      - minids_0_data:/data/rocksdb
+    networks:
+      - minipay-net
+
+  minids-1:
+    build:
+      context: ./minids
+      dockerfile: Dockerfile
+    container_name: minipay-minids-1
+    profiles: ["payments", "all"]
+    environment:
+      NODE_ID: minids-1
+      RAFT_PORT: 8310
+      API_PORT: 8311
+      RAFT_PEERS: minids-0:8300,minids-1:8310,minids-2:8320
+      DATA_DIR: /data/rocksdb
+    ports:
+      - "8310:8310"
+      - "8311:8311"
+    volumes:
+      - minids_1_data:/data/rocksdb
+    networks:
+      - minipay-net
+
+  minids-2:
+    build:
+      context: ./minids
+      dockerfile: Dockerfile
+    container_name: minipay-minids-2
+    profiles: ["payments", "all"]
+    environment:
+      NODE_ID: minids-2
+      RAFT_PORT: 8320
+      API_PORT: 8321
+      RAFT_PEERS: minids-0:8300,minids-1:8310,minids-2:8320
+      DATA_DIR: /data/rocksdb
+    ports:
+      - "8320:8320"
+      - "8321:8321"
+    volumes:
+      - minids_2_data:/data/rocksdb
+    networks:
+      - minipay-net
+
+volumes:
+  minids_0_data:
+  minids_1_data:
+  minids_2_data:

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>ro.minipay</groupId>
+    <artifactId>minipay-parent</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>MiniPay — Payment Gateway</name>
+    <description>Dissertation Project: Comparative Analysis of Digital Payment Systems</description>
+
+    <modules>
+        <module>minids</module>
+        <module>services/auth-svc</module>
+        <module>services/user-svc</module>
+        <module>services/session-svc</module>
+        <module>services/gateway-svc</module>
+        <module>services/vault-svc</module>
+        <module>services/network-svc</module>
+        <module>services/issuer-svc</module>
+        <module>services/tds-svc</module>
+        <module>services/settlement-svc</module>
+        <module>services/audit-svc</module>
+        <module>services/psd2-svc</module>
+        <module>services/notif-svc</module>
+    </modules>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.4</version>
+        <relativePath/>
+    </parent>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Dependency versions -->
+        <spring-authorization-server.version>1.3.2</spring-authorization-server.version>
+        <grpc-spring-boot.version>3.1.0.RELEASE</grpc-spring-boot.version>
+        <protobuf.version>3.25.3</protobuf.version>
+        <bouncycastle.version>1.78.1</bouncycastle.version>
+        <microraft.version>0.7</microraft.version>
+        <rocksdb.version>9.0.0</rocksdb.version>
+        <mapstruct.version>1.5.5.Final</mapstruct.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+
+            <!-- Spring Authorization Server -->
+            <dependency>
+                <groupId>org.springframework.security</groupId>
+                <artifactId>spring-security-oauth2-authorization-server</artifactId>
+                <version>${spring-authorization-server.version}</version>
+            </dependency>
+
+            <!-- gRPC -->
+            <dependency>
+                <groupId>net.devh</groupId>
+                <artifactId>grpc-spring-boot-starter</artifactId>
+                <version>${grpc-spring-boot.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.devh</groupId>
+                <artifactId>grpc-client-spring-boot-starter</artifactId>
+                <version>${grpc-spring-boot.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>${protobuf.version}</version>
+            </dependency>
+
+            <!-- Post-Quantum Cryptography — Bouncy Castle -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+
+            <!-- MicroRaft — Raft consensus -->
+            <dependency>
+                <groupId>io.microraft</groupId>
+                <artifactId>microraft</artifactId>
+                <version>${microraft.version}</version>
+            </dependency>
+
+            <!-- RocksDB — embedded KV store -->
+            <dependency>
+                <groupId>org.rocksdb</groupId>
+                <artifactId>rocksdbjni</artifactId>
+                <version>${rocksdb.version}</version>
+            </dependency>
+
+            <!-- MapStruct -->
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <!-- Dependinte comune tuturor serviciilor -->
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

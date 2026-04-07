@@ -1,0 +1,39 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'auth-svc'
+    static_configs:
+      - targets: ['auth-svc:8081']
+    metrics_path: '/actuator/prometheus'
+
+  - job_name: 'gateway-svc'
+    static_configs:
+      - targets: ['gateway-svc:8084']
+    metrics_path: '/actuator/prometheus'
+
+  - job_name: 'vault-svc'
+    static_configs:
+      - targets: ['vault-svc:8085']
+    metrics_path: '/actuator/prometheus'
+
+  - job_name: 'network-svc'
+    static_configs:
+      - targets: ['network-svc:8086']
+    metrics_path: '/actuator/prometheus'
+
+  - job_name: 'issuer-svc'
+    static_configs:
+      - targets: ['issuer-svc:8087']
+    metrics_path: '/actuator/prometheus'
+
+  - job_name: 'fraud-svc'
+    static_configs:
+      - targets: ['fraud-svc:8090']
+    metrics_path: '/metrics'
+
+  - job_name: 'audit-svc'
+    static_configs:
+      - targets: ['audit-svc:8091']
+    metrics_path: '/actuator/prometheus'

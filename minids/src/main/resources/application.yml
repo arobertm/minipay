@@ -1,6 +1,10 @@
 server:
   port: ${API_PORT:8301}
 
+grpc:
+  server:
+    port: ${GRPC_PORT:9081}
+
 spring:
   application:
     name: minids

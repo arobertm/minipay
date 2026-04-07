@@ -34,7 +34,7 @@ public class MiniDSTransport implements Transport {
 
         executor.submit(() -> {
             try {
-                URI uri = URI.create("http://" + endpoint.host() + ":" + endpoint.port() + "/raft/message");
+                URI uri = URI.create("http://" + endpoint.host() + ":" + endpoint.httpPort() + "/raft/message");
                 byte[] body = objectMapper.writeValueAsBytes(message);
 
                 HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
@@ -64,7 +64,7 @@ public class MiniDSTransport implements Transport {
     public boolean isReachable(RaftEndpoint endpoint) {
         if (!(endpoint instanceof MiniDSEndpoint e)) return false;
         try {
-            URI uri = URI.create("http://" + e.host() + ":" + e.port() + "/raft/health");
+            URI uri = URI.create("http://" + e.host() + ":" + e.httpPort() + "/raft/health");
             HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
             conn.setRequestMethod("GET");
             conn.setConnectTimeout(1000);

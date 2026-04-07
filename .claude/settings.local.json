@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls c:/disertatie-master/minids/target/*.jar)",
+      "Bash(curl -s http://localhost:8301/raft/status)",
+      "Bash(python -m json.tool)",
+      "Bash(tasklist)",
+      "Bash(taskkill /PID 4948 /F)",
+      "Bash(cmd //c \"taskkill /PID 4948 /F\")",
+      "Bash(curl -s http://localhost:8301/minids/v1/health)",
+      "Bash(mvn package:*)"
+    ]
+  }
+}

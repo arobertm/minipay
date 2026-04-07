@@ -71,10 +71,18 @@ public class RaftConfig {
 
     private List<RaftEndpoint> parseEndpoints(String peers) {
         // Format: "minids-0:8300,minids-1:8310,minids-2:8320"
+        // Pe Docker/K8s: host = node-id (rezolvat prin DNS)
+        // Pe localhost:  host = "localhost" (toti pe aceeasi masina)
+        String resolveHost = System.getenv().getOrDefault("RAFT_RESOLVE_LOCALHOST", "false");
+        boolean useLocalhost = "true".equalsIgnoreCase(resolveHost);
+
         return Arrays.stream(peers.split(","))
                 .map(peer -> {
                     String[] parts = peer.trim().split(":");
-                    return (RaftEndpoint) new MiniDSEndpoint(parts[0], parts[0], Integer.parseInt(parts[1]));
+                    String id   = parts[0];
+                    String host = useLocalhost ? "localhost" : parts[0];
+                    int    port = Integer.parseInt(parts[1]);
+                    return (RaftEndpoint) new MiniDSEndpoint(id, host, port);
                 })
                 .toList();
     }

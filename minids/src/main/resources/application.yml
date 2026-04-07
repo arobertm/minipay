@@ -1,0 +1,38 @@
+server:
+  port: ${API_PORT:8301}
+
+spring:
+  application:
+    name: minids
+  threads:
+    virtual:
+      enabled: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+# MiniDS — Directory Server Configuration
+minids:
+  node-id:   ${NODE_ID:minids-0}
+  raft-port: ${RAFT_PORT:8300}
+  raft-peers: ${RAFT_PEERS:minids-0:8300,minids-1:8310,minids-2:8320}
+  data-dir:  ${DATA_DIR:./data/rocksdb}
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    ro.minipay.minids: DEBUG
+    io.microraft: INFO

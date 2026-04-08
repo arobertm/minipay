@@ -6,8 +6,8 @@ import java.io.Serializable;
 import java.util.Map;
 
 /**
- * Operatia trimisa prin Raft catre StateMachine.
- * Trebuie sa fie Serializable — MicroRaft o stocheaza in log.
+ * Operation sent through Raft to the StateMachine.
+ * Must be Serializable — MicroRaft stores it in the log.
  */
 public record DSOperation(
         Type type,

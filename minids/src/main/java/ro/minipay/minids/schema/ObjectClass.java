@@ -3,20 +3,20 @@ package ro.minipay.minids.schema;
 import java.util.Set;
 
 /**
- * Schema MiniDS — Object Classes disponibile.
+ * MiniDS Schema — available Object Classes.
  *
- * Inspirat din schema LDAP a PingDS:
- *   - fiecare objectClass defineste ce atribute sunt permise/obligatorii
- *   - validarea se face la CREATE si MODIFY
+ * Inspired by the LDAP schema in PingDS:
+ *   - each objectClass defines which attributes are allowed/required
+ *   - validation is performed on CREATE and MODIFY
  *
- * PingDS real foloseste schema LDAP standard (RFC 4519) + extensii proprii.
- * Noi folosim o schema simplificata JSON-based.
+ * Real PingDS uses the standard LDAP schema (RFC 4519) + its own extensions.
+ * We use a simplified JSON-based schema.
  */
 public enum ObjectClass {
 
     /**
-     * Utilizator al sistemului MiniPay.
-     * Echivalent: inetOrgPerson + custom schema in PingDS
+     * MiniPay system user.
+     * Equivalent: inetOrgPerson + custom schema in PingDS
      */
     MINIPAY_USER(
         "minipayUser",
@@ -27,8 +27,8 @@ public enum ObjectClass {
     ),
 
     /**
-     * Token OAuth2 — stocat in CTS (Core Token Service).
-     * Echivalent: fr-idrepo-coreTokenType din PingDS CTS schema
+     * OAuth2 Token — stored in CTS (Core Token Service).
+     * Equivalent: fr-idrepo-coreTokenType in PingDS CTS schema
      */
     CORE_TOKEN(
         "coreToken",
@@ -39,7 +39,7 @@ public enum ObjectClass {
     ),
 
     /**
-     * Sesiune activa a unui utilizator.
+     * An active user session.
      */
     SESSION(
         "minipaySession",
@@ -49,8 +49,8 @@ public enum ObjectClass {
     ),
 
     /**
-     * OAuth2 Client inregistrat (aplicatia merchant).
-     * Echivalent: agentType=OAuth2Client in PingDS
+     * Registered OAuth2 Client (the merchant application).
+     * Equivalent: agentType=OAuth2Client in PingDS
      */
     OAUTH2_CLIENT(
         "oauth2Client",
@@ -61,8 +61,8 @@ public enum ObjectClass {
     ),
 
     /**
-     * Card tokenizat — vault entry.
-     * Nou — nu exista echivalent in PingDS standard.
+     * Tokenized card — vault entry.
+     * New — no equivalent in standard PingDS.
      */
     CARD_VAULT(
         "cardVault",
@@ -72,8 +72,8 @@ public enum ObjectClass {
     ),
 
     /**
-     * Container organizational (OU).
-     * Echivalent: organizationalUnit in LDAP
+     * Organizational container (OU).
+     * Equivalent: organizationalUnit in LDAP
      */
     ORGANIZATIONAL_UNIT(
         "organizationalUnit",
@@ -82,7 +82,7 @@ public enum ObjectClass {
     ),
 
     /**
-     * Radacina arborelui DIT (Directory Information Tree).
+     * Root of the DIT (Directory Information Tree).
      */
     DOMAIN_COMPONENT(
         "domain",

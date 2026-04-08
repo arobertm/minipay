@@ -4,35 +4,40 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import lombok.Data;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.time.Instant;
 import java.util.*;
 
 /**
- * Entry — unitatea de baza a MiniDS, inspirata din LDAP Entry.
+ * Entry — the basic unit of MiniDS, inspired by the LDAP Entry.
  *
- * Similar cu un entry LDAP din PingDS:
+ * Similar to an LDAP entry in PingDS:
  *   dn: uid=john,ou=users,dc=minipay,dc=ro
  *   objectClass: minipayUser
  *   uid: john
  *   cn: John Doe
  *   ...
  *
- * Diferenta fata de LDAP clasic: stocam JSON, nu ASN.1 binar.
- * Backend: RocksDB (similar Berkeley DB JE din PingDS real).
+ * Difference from classic LDAP: we store JSON, not binary ASN.1.
+ * Backend: RocksDB (similar to Berkeley DB JE in real PingDS).
  */
 @Data
-public class Entry {
+public class Entry implements Serializable {
 
-    /** Distinguished Name — cheia unica in director */
+    @Serial
+    private static final long serialVersionUID = 1L;
+
+    /** Distinguished Name — the unique key in the directory */
     private String dn;
 
-    /** Tipul entry-ului — determina ce atribute sunt permise */
+    /** The type of the entry — determines which attributes are allowed */
     private String objectClass;
 
-    /** Atributele entry-ului (schema-flexible, ca LDAP) */
+    /** Entry attributes (schema-flexible, like LDAP) */
     private Map<String, Object> attributes = new LinkedHashMap<>();
 
-    /** Metadata interna */
+    /** Internal metadata */
     private Instant createTimestamp;
     private Instant modifyTimestamp;
     private long version = 1;
@@ -61,8 +66,8 @@ public class Entry {
     }
 
     /**
-     * Extrage RDN (Relative Distinguished Name) — primul component din DN.
-     * Ex: "uid=john,ou=users,dc=minipay,dc=ro" → "uid=john"
+     * Extracts the RDN (Relative Distinguished Name) — the first component of the DN.
+     * E.g.: "uid=john,ou=users,dc=minipay,dc=ro" → "uid=john"
      */
     public String getRdn() {
         if (dn == null) return null;
@@ -71,8 +76,8 @@ public class Entry {
     }
 
     /**
-     * Extrage parent DN.
-     * Ex: "uid=john,ou=users,dc=minipay,dc=ro" → "ou=users,dc=minipay,dc=ro"
+     * Extracts the parent DN.
+     * E.g.: "uid=john,ou=users,dc=minipay,dc=ro" → "ou=users,dc=minipay,dc=ro"
      */
     public String getParentDn() {
         if (dn == null) return null;

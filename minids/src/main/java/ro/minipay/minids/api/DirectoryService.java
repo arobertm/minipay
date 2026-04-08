@@ -15,13 +15,13 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * DirectoryService — layer de business logic peste Raft + RocksDB.
+ * DirectoryService — business logic layer over Raft + RocksDB.
  *
- * Toate scrierile trec prin Raft (pentru replicare).
- * Citirile pot fi locale (READ de pe orice nod) sau
- * consistent reads (doar de pe Leader).
+ * All writes go through Raft (for replication).
+ * Reads can be local (READ from any node) or
+ * consistent reads (only from the Leader).
  *
- * Analogie cu PingDS REST API:
+ * Analogy with PingDS REST API:
  *   POST   /users/{id}   → createEntry()
  *   GET    /users/{id}   → getEntry()
  *   PUT    /users/{id}   → updateEntry()
@@ -37,8 +37,8 @@ public class DirectoryService {
     private final SchemaValidator schemaValidator;
 
     /**
-     * Creeaza un entry nou in director.
-     * Trece prin Raft → replicat pe toate nodurile.
+     * Creates a new entry in the directory.
+     * Goes through Raft → replicated to all nodes.
      */
     public Entry createEntry(Entry entry) {
         if (entry.getCreateTimestamp() == null) {
@@ -49,25 +49,25 @@ public class DirectoryService {
 
         schemaValidator.validate(entry);
         raftClient.submit(DSOperation.put(entry.getDn(), entry));
-        log.debug("Entry creat: {}", entry.getDn());
+        log.debug("Entry created: {}", entry.getDn());
         return entry;
     }
 
     /**
-     * Citeste un entry dupa DN.
-     * Read local — nu trece prin Raft (poate fi usor stale pe replici).
+     * Reads an entry by DN.
+     * Local read — does not go through Raft (may be slightly stale on replicas).
      */
     public Optional<Entry> getEntry(String dn) {
         try {
             return raftClient.readLocal(dn);
         } catch (RocksDBException e) {
-            throw new RuntimeException("Eroare citire entry: " + dn, e);
+            throw new RuntimeException("Error reading entry: " + dn, e);
         }
     }
 
     /**
-     * Actualizeaza un entry existent.
-     * Trece prin Raft → replicat.
+     * Updates an existing entry.
+     * Goes through Raft → replicated.
      */
     public Entry updateEntry(String dn, Entry entry) {
         entry.setDn(dn);
@@ -76,28 +76,28 @@ public class DirectoryService {
 
         schemaValidator.validate(entry);
         raftClient.submit(DSOperation.put(dn, entry));
-        log.debug("Entry actualizat: {}", dn);
+        log.debug("Entry updated: {}", dn);
         return entry;
     }
 
     /**
-     * Sterge un entry.
-     * Trece prin Raft → sters pe toate nodurile.
+     * Deletes an entry.
+     * Goes through Raft → deleted on all nodes.
      */
     public void deleteEntry(String dn) {
         raftClient.submit(DSOperation.delete(dn));
-        log.debug("Entry sters: {}", dn);
+        log.debug("Entry deleted: {}", dn);
     }
 
     /**
-     * Cauta entry-uri sub un baseDN cu filtru.
-     * Inspirat din LDAP Search Operation (RFC 4511).
+     * Searches for entries under a baseDN with a filter.
+     * Inspired by the LDAP Search Operation (RFC 4511).
      */
     public List<Entry> search(String baseDn, Map<String, String> filter, int limit) {
         try {
             return raftClient.search(baseDn, filter, limit);
         } catch (RocksDBException e) {
-            throw new RuntimeException("Eroare search sub: " + baseDn, e);
+            throw new RuntimeException("Error searching under: " + baseDn, e);
         }
     }
 

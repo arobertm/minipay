@@ -8,7 +8,28 @@
       "Bash(taskkill /PID 4948 /F)",
       "Bash(cmd //c \"taskkill /PID 4948 /F\")",
       "Bash(curl -s http://localhost:8301/minids/v1/health)",
-      "Bash(mvn package:*)"
+      "Bash(mvn package:*)",
+      "Bash(cmd /c scripts\\\\start-minids-cluster.bat)",
+      "Bash(curl -s http://localhost:8311/raft/status)",
+      "Bash(curl -s http://localhost:8321/raft/status)",
+      "Bash(netstat -ano)",
+      "Bash(echo \"RAFT_PEERS=$RAFT_PEERS\")",
+      "Bash(env)",
+      "Bash(unset RAFT_PEERS)",
+      "Bash(unset NODE_ID)",
+      "Bash(unset API_PORT)",
+      "Bash(unset RAFT_PORT)",
+      "Bash(unset DATA_DIR)",
+      "Bash(bash c:/disertatie-master/scripts/start-minids-bash.sh)",
+      "Bash(grep -v \"^$\")",
+      "Bash(cmd.exe /c \"taskkill /PID 11096 /F & taskkill /PID 23592 /F & taskkill /PID 3572 /F\")",
+      "Bash(cmd.exe /c \"taskkill /PID 11096 /F 2>&1 && taskkill /PID 23592 /F 2>&1 && taskkill /PID 3572 /F 2>&1\")",
+      "Bash(powershell.exe -Command \"Stop-Process -Id 11096,23592,3572 -Force -ErrorAction SilentlyContinue; Start-Sleep -s 2; Get-NetTCPConnection -LocalPort 8301,8311,8321 -State Listen -ErrorAction SilentlyContinue\")",
+      "Bash(curl -s -X POST http://localhost:8301/minids/v1/entries -H \"Content-Type: application/json\" -d '{\"\"\"\"dn\"\"\"\":\"\"\"\"uid=testuser,ou=users,dc=minipay,dc=ro\"\"\"\",\"\"\"\"objectClass\"\"\"\":\"\"\"\"miniPayUser\"\"\"\",\"\"\"\"attributes\"\"\"\":{\"\"\"\"uid\"\"\"\":\"\"\"\"testuser\"\"\"\",\"\"\"\"mail\"\"\"\":\"\"\"\"testuser@minipay.ro\"\"\"\",\"\"\"\"cn\"\"\"\":\"\"\"\"Test User\"\"\"\"}}')",
+      "Bash(curl -s -X POST http://localhost:8301/minids/v1/entries -H 'Content-Type: application/json' -d '{\"\"\"\"dn\"\"\"\":\"\"\"\"uid=testuser,ou=users,dc=minipay,dc=ro\"\"\"\",\"\"\"\"objectClass\"\"\"\":\"\"\"\"miniPayUser\"\"\"\",\"\"\"\"attributes\"\"\"\":{\"\"\"\"uid\"\"\"\":\"\"\"\"testuser\"\"\"\",\"\"\"\"mail\"\"\"\":\"\"\"\"testuser@minipay.ro\"\"\"\",\"\"\"\"cn\"\"\"\":\"\"\"\"Test User\"\"\"\"}}')",
+      "Bash(powershell.exe -Command 'Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 8301,8311,8321 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess -Force -ErrorAction SilentlyContinue' 2)",
+      "Bash(/dev/null sleep:*)",
+      "Bash(powershell.exe -Command \"Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 8301,8311,8321 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess -Force -ErrorAction SilentlyContinue\")"
     ]
   }
 }

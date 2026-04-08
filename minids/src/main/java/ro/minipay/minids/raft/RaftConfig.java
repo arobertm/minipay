@@ -1,49 +1,35 @@
 package ro.minipay.minids.raft;
 
+import io.microraft.RaftEndpoint;
 import io.microraft.RaftNode;
 import io.microraft.model.impl.DefaultRaftModelFactory;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import io.microraft.RaftEndpoint;
+import ro.minipay.minids.config.MiniDSProperties;
 
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Configuratie Spring pentru MicroRaft.
- *
- * Fiecare nod MiniDS porneste cu:
- *   - NODE_ID propriu (minids-0, minids-1, minids-2)
- *   - lista peer-urilor din cluster
- *   - StateMachine propriu (aplica operatiile in RocksDB local)
- */
 @Slf4j
 @Configuration
+@RequiredArgsConstructor
 public class RaftConfig {
 
-    @Value("${minids.node-id}")
-    private String nodeId;
-
-    @Value("${minids.raft-peers}")
-    private String raftPeers;
-
-    @Value("${minids.raft-port:8300}")
-    private int raftPort;
+    private final MiniDSProperties props;
 
     @Bean
     RaftNode raftNode(MiniDSStateMachine stateMachine, MiniDSTransport transport) {
 
-        List<RaftEndpoint> endpoints = parseEndpoints(raftPeers);
+        List<RaftEndpoint> endpoints = parseEndpoints(props.getRaftPeers());
 
         MiniDSEndpoint localEndpoint = endpoints.stream()
-                .filter(e -> e instanceof MiniDSEndpoint m && m.id().equals(nodeId))
+                .filter(e -> e instanceof MiniDSEndpoint m && m.id().equals(props.getNodeId()))
                 .map(e -> (MiniDSEndpoint) e)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
-                        "NODE_ID '" + nodeId + "' nu se gaseste in RAFT_PEERS: " + raftPeers));
+                        "NODE_ID '" + props.getNodeId() + "' not found in RAFT_PEERS: " + props.getRaftPeers()));
 
         io.microraft.RaftConfig config = io.microraft.RaftConfig.newBuilder()
                 .setLeaderHeartbeatPeriodSecs(1)
@@ -51,7 +37,7 @@ public class RaftConfig {
                 .setCommitCountToTakeSnapshot(1000)
                 .build();
 
-        log.info("Pornesc nod Raft: {} din cluster: {}", nodeId, raftPeers);
+        log.info("Starting Raft node: {} with peers: {}", props.getNodeId(), props.getRaftPeers());
 
         return RaftNode.newBuilder()
                 .setGroupId("minids-cluster")
@@ -66,14 +52,16 @@ public class RaftConfig {
 
     @Bean
     MiniDSTransport miniDSTransport() {
-        return new MiniDSTransport(nodeId, raftPort);
+        return new MiniDSTransport(props.getNodeId(), props.getRaftPort());
     }
 
     private List<RaftEndpoint> parseEndpoints(String peers) {
-        // Format: "minids-0:8300,minids-1:8310,minids-2:8320"
-        // Pe Docker/K8s: host = node-id (rezolvat prin DNS)
-        // Pe localhost:  host = "localhost" (toti pe aceeasi masina)
-        String resolveHost = System.getenv().getOrDefault("RAFT_RESOLVE_LOCALHOST", "false");
+        // Format: "minids-0:8301,minids-1:8311,minids-2:8321"
+        // Port = direct HTTP port (API port)
+        // On Docker/K8s: host = node-id (internal DNS)
+        // On localhost:  RAFT_RESOLVE_LOCALHOST=true → host = "localhost"
+        String resolveHost = System.getenv().getOrDefault("RAFT_RESOLVE_LOCALHOST",
+                             System.getProperty("RAFT_RESOLVE_LOCALHOST", "false"));
         boolean useLocalhost = "true".equalsIgnoreCase(resolveHost);
 
         return Arrays.stream(peers.split(","))

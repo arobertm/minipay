@@ -11,24 +11,24 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * REST API al MiniDS — inspirat din PingDS REST API.
+ * REST API for MiniDS — inspired by the PingDS REST API.
  *
- * PingDS real expune:
+ * PingDS real exposes:
  *   GET    /users/{id}
  *   POST   /users
  *   PUT    /users/{id}
  *   DELETE /users/{id}
  *   POST   /users?_action=search
  *
- * MiniDS expune acelasi concept dar cu DN explicit in path:
+ * MiniDS exposes the same concept but with an explicit DN in the path:
  *   GET    /minids/v1/entries/{dn}
  *   POST   /minids/v1/entries
  *   PUT    /minids/v1/entries/{dn}
  *   DELETE /minids/v1/entries/{dn}
  *   POST   /minids/v1/search
  *
- * Toate scrierile (POST/PUT/DELETE) trec prin Raft.
- * Citirile (GET/search) sunt locale (eventual consistency).
+ * All writes (POST/PUT/DELETE) go through Raft.
+ * Reads (GET/search) are local (eventual consistency).
  */
 @Slf4j
 @RestController
@@ -41,9 +41,9 @@ public class DirectoryController {
     // ─── CREATE ───────────────────────────────────────────────
 
     /**
-     * Creeaza un entry nou in director.
+     * Creates a new entry in the directory.
      *
-     * Exemplu request:
+     * Example request:
      * POST /minids/v1/entries
      * {
      *   "dn": "uid=john,ou=users,dc=minipay,dc=ro",
@@ -59,16 +59,16 @@ public class DirectoryController {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
         Entry created = directoryService.createEntry(entry);
-        log.info("Entry creat: {}", created.getDn());
+        log.info("Entry created: {}", created.getDn());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     // ─── READ ─────────────────────────────────────────────────
 
     /**
-     * Citeste un entry dupa DN.
+     * Reads an entry by DN.
      *
-     * Exemplu: GET /minids/v1/entries/uid=john,ou=users,dc=minipay,dc=ro
+     * Example: GET /minids/v1/entries/uid=john,ou=users,dc=minipay,dc=ro
      */
     @GetMapping("/entries/{dn}")
     public ResponseEntity<Entry> getEntry(@PathVariable String dn) {
@@ -80,7 +80,7 @@ public class DirectoryController {
     // ─── UPDATE ───────────────────────────────────────────────
 
     /**
-     * Inlocuieste un entry existent (PUT = replace complet).
+     * Replaces an existing entry (PUT = full replace).
      */
     @PutMapping("/entries/{dn}")
     public ResponseEntity<Entry> updateEntry(
@@ -95,7 +95,7 @@ public class DirectoryController {
     }
 
     /**
-     * Actualizeaza doar atributele trimise (PATCH = merge partial).
+     * Updates only the submitted attributes (PATCH = partial merge).
      */
     @PatchMapping("/entries/{dn}")
     public ResponseEntity<Entry> patchEntry(
@@ -113,7 +113,7 @@ public class DirectoryController {
     // ─── DELETE ───────────────────────────────────────────────
 
     /**
-     * Sterge un entry din director.
+     * Deletes an entry from the directory.
      */
     @DeleteMapping("/entries/{dn}")
     public ResponseEntity<Void> deleteEntry(@PathVariable String dn) {
@@ -121,17 +121,17 @@ public class DirectoryController {
             return ResponseEntity.notFound().build();
         }
         directoryService.deleteEntry(dn);
-        log.info("Entry sters: {}", dn);
+        log.info("Entry deleted: {}", dn);
         return ResponseEntity.noContent().build();
     }
 
     // ─── SEARCH ───────────────────────────────────────────────
 
     /**
-     * Cauta entry-uri sub un baseDN cu filtru.
-     * Inspirat din LDAP Search + PingDS ?_queryFilter=
+     * Searches for entries under a baseDN with a filter.
+     * Inspired by LDAP Search + PingDS ?_queryFilter=
      *
-     * Exemplu request:
+     * Example request:
      * POST /minids/v1/search
      * {
      *   "baseDn": "ou=users,dc=minipay,dc=ro",

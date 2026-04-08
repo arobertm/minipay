@@ -4,21 +4,25 @@ import io.microraft.RaftNode;
 import io.microraft.model.message.RaftMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.ByteArrayInputStream;
+import java.io.ObjectInputStream;
+
 /**
- * Receiver pentru mesajele Raft intre noduri.
+ * Receiver for Raft messages between nodes.
  *
- * MiniDSTransport trimite mesaje HTTP catre acest endpoint
- * pe celelalte noduri din cluster.
+ * MiniDSTransport sends HTTP messages to this endpoint
+ * on the other nodes in the cluster.
  *
- * Tipuri de mesaje Raft primite:
- *   VoteRequest      → candidatul cere voturi (leader election)
- *   VoteResponse     → raspuns la cerere de vot
- *   AppendEntries    → liderul trimite log entries la replici
- *   AppendEntriesAck → replica confirma primirea entries
- *   InstallSnapshot  → liderul trimite snapshot la noduri noi
+ * Types of Raft messages received:
+ *   VoteRequest      → candidate requests votes (leader election)
+ *   VoteResponse     → response to a vote request
+ *   AppendEntries    → leader sends log entries to replicas
+ *   AppendEntriesAck → replica confirms receipt of entries
+ *   InstallSnapshot  → leader sends snapshot to new nodes
  */
 @Slf4j
 @RestController
@@ -29,17 +33,23 @@ public class RaftMessageController {
     private final RaftNode raftNode;
 
     /**
-     * Primeste un mesaj Raft de la alt nod din cluster.
-     * MicroRaft il proceseaza intern si actualizeaza starea nodului.
+     * Receives a Raft message from another node in the cluster (binary Java serialization).
+     * RaftMessage is abstract — it cannot be deserialized directly from JSON.
      */
-    @PostMapping("/message")
-    public ResponseEntity<Void> receiveMessage(@RequestBody RaftMessage message) {
-        raftNode.handle(message);
-        return ResponseEntity.ok().build();
+    @PostMapping(value = "/message", consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ResponseEntity<Void> receiveMessage(@RequestBody byte[] body) {
+        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(body))) {
+            RaftMessage message = (RaftMessage) ois.readObject();
+            raftNode.handle(message);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            log.error("Raft message deserialization error: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     /**
-     * Health check folosit de MiniDSTransport.isReachable()
+     * Health check used by MiniDSTransport.isReachable()
      */
     @GetMapping("/health")
     public ResponseEntity<Void> health() {
@@ -47,7 +57,7 @@ public class RaftMessageController {
     }
 
     /**
-     * Status curent al nodului Raft (pentru debugging si monitorizare).
+     * Current status of the Raft node (for debugging and monitoring).
      */
     @GetMapping("/status")
     public ResponseEntity<?> status() {

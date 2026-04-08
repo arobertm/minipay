@@ -16,15 +16,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * RaftClient — wrapper peste MicroRaft RaftNode.
+ * RaftClient — wrapper over MicroRaft RaftNode.
  *
- * Scrieri → replicate() → trec prin Raft Leader → commit pe majority
- * Citiri  → locale din RocksDB (pot fi usor stale pe replici)
+ * Writes → replicate() → go through Raft Leader → commit on majority
+ * Reads  → local from RocksDB (may be slightly stale on replicas)
  *
- * Analogie cu PingDS:
- *   Scrierile merg la orice nod, dar sunt rutate intern la master.
- *   Citirile pot fi servite local (eventual consistency) sau
- *   de pe master (strong consistency).
+ * Analogy with PingDS:
+ *   Writes go to any node, but are routed internally to the master.
+ *   Reads can be served locally (eventual consistency) or
+ *   from the master (strong consistency).
  */
 @Slf4j
 @Component
@@ -37,41 +37,41 @@ public class RaftClient {
     private static final long TIMEOUT_MS = 5000;
 
     /**
-     * Trimite o operatie de scriere prin Raft.
-     * Blocheaza pana la COMMIT pe majority (2/3 noduri).
+     * Submits a write operation through Raft.
+     * Blocks until COMMIT on majority (2/3 nodes).
      */
     public void submit(DSOperation operation) {
         try {
             raftNode.replicate(operation)
                     .get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
-            throw new RaftTimeoutException("Raft timeout pentru " + operation.type() + " pe " + operation.dn());
+            throw new RaftTimeoutException("Raft timeout for " + operation.type() + " on " + operation.dn());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RaftException("Raft intrerupt", e);
+            throw new RaftException("Raft interrupted", e);
         } catch (ExecutionException e) {
-            throw new RaftException("Raft eroare de executie: " + e.getCause().getMessage(), e.getCause());
+            throw new RaftException("Raft execution error: " + e.getCause().getMessage(), e.getCause());
         }
     }
 
     /**
-     * Citire locala din RocksDB — fara a trece prin Raft.
-     * Poate returna date usor in urma fata de Leader (eventual consistency).
-     * Acceptabil pentru tokens/sessions care au TTL.
+     * Local read from RocksDB — without going through Raft.
+     * May return data slightly behind the Leader (eventual consistency).
+     * Acceptable for tokens/sessions that have a TTL.
      */
     public Optional<Entry> readLocal(String dn) throws RocksDBException {
         return store.get(dn);
     }
 
     /**
-     * Search local — fara Raft.
+     * Local search — without Raft.
      */
     public List<Entry> search(String baseDn, Map<String, String> filter, int limit)
             throws RocksDBException {
         return store.search(baseDn, filter, limit);
     }
 
-    // ─── Exceptii ─────────────────────────────────────────────
+    // ─── Exceptions ───────────────────────────────────────────
 
     public static class RaftTimeoutException extends RuntimeException {
         public RaftTimeoutException(String message) { super(message); }

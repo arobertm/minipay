@@ -13,17 +13,17 @@ import java.util.function.Consumer;
 /**
  * MiniDS Raft State Machine.
  *
- * Analogie cu PingDS:
+ * Analogy with PingDS:
  *   PingDS real → changelog replication (multi-master)
  *   MiniDS      → MicroRaft (single-leader consensus)
  *
- * Flux Raft pentru o scriere:
- *   1. Client → Leader: trimite DSOperation
- *   2. Leader: adauga in log + trimite AppendEntries la replici
- *   3. Majority ACK (2 din 3) → COMMIT
- *   4. runOperation() apelat pe FIECARE nod in aceeasi ordine
- *   5. Fiecare nod aplica in RocksDB propriu
- *   6. Leader raspunde clientului
+ * Raft flow for a write:
+ *   1. Client → Leader: sends DSOperation
+ *   2. Leader: appends to log + sends AppendEntries to replicas
+ *   3. Majority ACK (2 of 3) → COMMIT
+ *   4. runOperation() called on EVERY node in the same order
+ *   5. Each node applies to its own RocksDB
+ *   6. Leader responds to the client
  */
 @Slf4j
 @Component
@@ -33,13 +33,13 @@ public class MiniDSStateMachine implements StateMachine {
     private final RocksDBStore store;
 
     /**
-     * Apelat de MicroRaft dupa COMMIT.
-     * Garantat: aceeasi ordine pe toate nodurile.
+     * Called by MicroRaft after COMMIT.
+     * Guaranteed: same order on all nodes.
      */
     @Override
     public Object runOperation(long commitIndex, Object operation) {
         if (!(operation instanceof DSOperation op)) {
-            throw new IllegalArgumentException("Operatie necunoscuta: " + operation);
+            throw new IllegalArgumentException("Unknown operation: " + operation);
         }
 
         try {
@@ -50,15 +50,15 @@ public class MiniDSStateMachine implements StateMachine {
                 case SEARCH -> executeSearch(op);
             };
         } catch (RocksDBException e) {
-            log.error("RocksDB error la commitIndex={}: {}", commitIndex, e.getMessage());
-            throw new RuntimeException("Eroare storage la commitIndex=" + commitIndex, e);
+            log.error("RocksDB error at commitIndex={}: {}", commitIndex, e.getMessage());
+            throw new RuntimeException("Storage error at commitIndex=" + commitIndex, e);
         }
     }
 
     /**
-     * Operatie speciala trimisa automat de MicroRaft la inceputul unui nou termen.
-     * Folosita pentru a marca tranzitia de leadership in log.
-     * Returnam null = nicio operatie necesara la schimbarea termenului.
+     * Special operation automatically sent by MicroRaft at the beginning of a new term.
+     * Used to mark the leadership transition in the log.
+     * Returns null = no operation needed on term change.
      */
     @Override
     public Object getNewTermOperation() {
@@ -66,21 +66,21 @@ public class MiniDSStateMachine implements StateMachine {
     }
 
     /**
-     * Snapshot — salveaza starea pentru noduri noi sau ramase in urma.
-     * In PingDS: "full replication" cand un nod nou se alatura.
+     * Snapshot — saves state for new or lagging nodes.
+     * In PingDS: "full replication" when a new node joins.
      */
     @Override
     public void takeSnapshot(long commitIndex, Consumer<Object> snapshotChunkConsumer) {
-        log.info("Snapshot la commitIndex={}", commitIndex);
+        log.info("Snapshot at commitIndex={}", commitIndex);
         snapshotChunkConsumer.accept("snapshot-" + commitIndex);
     }
 
     /**
-     * Instaleaza snapshot pe un nod nou.
+     * Installs a snapshot on a new node.
      */
     @Override
     public void installSnapshot(long commitIndex, List<Object> snapshotChunks) {
-        log.info("Install snapshot la commitIndex={}, chunks={}", commitIndex, snapshotChunks.size());
+        log.info("Installing snapshot at commitIndex={}, chunks={}", commitIndex, snapshotChunks.size());
     }
 
     // ─── Execute helpers ──────────────────────────────────────

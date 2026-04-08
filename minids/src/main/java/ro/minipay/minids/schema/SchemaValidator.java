@@ -7,18 +7,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Valideaza un Entry conform schemei ObjectClass.
- * Inspirat din schema enforcement-ul din PingDS.
+ * Validates an Entry against the ObjectClass schema.
+ * Inspired by schema enforcement in PingDS.
  */
 @Component
 public class SchemaValidator {
 
     public void validate(Entry entry) {
         if (entry.getDn() == null || entry.getDn().isBlank()) {
-            throw new SchemaViolationException("DN este obligatoriu");
+            throw new SchemaViolationException("DN is required");
         }
         if (entry.getObjectClass() == null) {
-            throw new SchemaViolationException("objectClass este obligatoriu");
+            throw new SchemaViolationException("objectClass is required");
         }
 
         ObjectClass oc = ObjectClass.fromName(entry.getObjectClass());
@@ -32,7 +32,7 @@ public class SchemaValidator {
 
         if (!missing.isEmpty()) {
             throw new SchemaViolationException(
-                "Atribute obligatorii lipsa pentru " + oc.name + ": " + missing
+                "Missing required attributes for " + oc.name + ": " + missing
             );
         }
     }

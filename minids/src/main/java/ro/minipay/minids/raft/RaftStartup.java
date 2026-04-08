@@ -8,8 +8,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Porneste RaftNode dupa ce Spring context e complet initializat.
- * MicroRaft necesita apel explicit la .start() pentru a intra in Raft lifecycle.
+ * Starts the RaftNode after the Spring context is fully initialized.
+ * MicroRaft requires an explicit call to .start() to enter the Raft lifecycle.
  */
 @Slf4j
 @Component
@@ -20,8 +20,8 @@ public class RaftStartup {
 
     @EventListener(ApplicationReadyEvent.class)
     public void startRaft() {
-        log.info("Pornesc Raft node: {}", raftNode.getLocalEndpoint().getId());
+        log.info("Starting Raft node: {}", raftNode.getLocalEndpoint().getId());
         raftNode.start();
-        log.info("Raft node pornit. Status: {}", raftNode.getStatus());
+        log.info("Raft node started. Status: {}", raftNode.getStatus());
     }
 }

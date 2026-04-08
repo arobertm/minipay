@@ -34,7 +34,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RaftClient.RaftException.class)
     public ResponseEntity<Map<String, String>> handleRaftException(
             RaftClient.RaftException ex) {
-        log.error("Raft eroare: {}", ex.getMessage());
+        log.error("Raft error: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "RAFT_ERROR", "message", ex.getMessage()));

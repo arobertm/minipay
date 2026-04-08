@@ -6,35 +6,33 @@ import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.*;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import ro.minipay.minids.config.MiniDSProperties;
 import ro.minipay.minids.model.Entry;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
- * RocksDB Storage Engine pentru MiniDS.
+ * RocksDB Storage Engine for MiniDS.
  *
- * Analogie cu PingDS:
- *   PingDS real    → Berkeley DB JE (sau RocksDB in versiuni noi)
+ * Analogy with PingDS:
+ *   PingDS real    → Berkeley DB JE (or RocksDB in newer versions)
  *   MiniDS         → RocksDB embedded
  *
- * Column Families = "tabele" separate in RocksDB:
- *   cf_entries     → toate entry-urile (key=DN, value=JSON)
- *   cf_idx_mail    → index dupa email (key=email, value=DN)
- *   cf_idx_uid     → index dupa uid (key=uid, value=DN)
- *   cf_idx_type    → index dupa objectClass (key=type+DN, value=DN)
- *   cf_idx_expiry  → index dupa expiry (pentru CTS cleanup)
+ * Column Families = separate "tables" in RocksDB:
+ *   cf_entries     → all entries (key=DN, value=JSON)
+ *   cf_idx_mail    → index by email (key=email, value=DN)
+ *   cf_idx_uid     → index by uid (key=uid, value=DN)
+ *   cf_idx_type    → index by objectClass (key=type+DN, value=DN)
+ *   cf_idx_expiry  → index by expiry (for CTS cleanup)
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class RocksDBStore {
 
-    @Value("${minids.data-dir:/data/rocksdb}")
-    private String dataDir;
-
+    private final MiniDSProperties props;
     private final ObjectMapper objectMapper;
 
     private RocksDB db;
@@ -60,25 +58,31 @@ public class RocksDBStore {
 
         List<ColumnFamilyHandle> handles = new ArrayList<>();
 
-        dbOptions = new DBOptions()
-            .setCreateIfMissing(true)
-            .setCreateMissingColumnFamilies(true);
+        DBOptions options = new DBOptions();
+        
+        options.setCreateIfMissing(true);
+        options.setCreateMissingColumnFamilies(true);
+        try {
+            db = RocksDB.open(options, props.getDataDir(), cfDescriptors, handles);
+            dbOptions = options;
+        } catch (RocksDBException e) {
+            options.close();
+            throw e;
+        }
 
-        db = RocksDB.open(dbOptions, dataDir, cfDescriptors, handles);
-
-        // handles[0] = default (ignoram)
+        // handles[0] = default (ignored)
         cfEntries  = handles.get(1);
         cfIdxMail  = handles.get(2);
         cfIdxUid   = handles.get(3);
         cfIdxType  = handles.get(4);
         cfIdxExpiry = handles.get(5);
 
-        log.info("MiniDS RocksDB pornit la: {}", dataDir);
+        log.info("MiniDS RocksDB started at: {}", props.getDataDir());
         initBaseDIT();
     }
 
     /**
-     * Initializeaza arborele DIT de baza (ca PingDS la primul start).
+     * Initializes the base DIT tree (like PingDS on first start).
      *
      * dc=minipay,dc=ro
      *   ou=users
@@ -90,14 +94,14 @@ public class RocksDBStore {
     private void initBaseDIT() throws RocksDBException {
         String baseDn = "dc=minipay,dc=ro";
         if (get(baseDn) == null) {
-            log.info("Initializez DIT de baza...");
+            log.info("Initializing base DIT...");
             createOU(baseDn, "domain", "dc", "minipay");
             createOU("ou=users,dc=minipay,dc=ro",    "organizationalUnit", "ou", "users");
             createOU("ou=tokens,dc=minipay,dc=ro",   "organizationalUnit", "ou", "tokens");
             createOU("ou=sessions,dc=minipay,dc=ro", "organizationalUnit", "ou", "sessions");
             createOU("ou=clients,dc=minipay,dc=ro",  "organizationalUnit", "ou", "clients");
             createOU("ou=vault,dc=minipay,dc=ro",    "organizationalUnit", "ou", "vault");
-            log.info("DIT initializat: {}", baseDn);
+            log.info("DIT initialized: {}", baseDn);
         }
     }
 
@@ -156,14 +160,14 @@ public class RocksDBStore {
     // ─── Search ───────────────────────────────────────────────
 
     /**
-     * Cauta entry-uri sub un baseDN cu un filtru simplu.
+     * Searches for entries under a baseDN with a simple filter.
      *
-     * Inspirat din LDAP Search Operation (RFC 4511).
-     * PingDS real indexeaza automat; noi facem scan pe prefix.
+     * Inspired by the LDAP Search Operation (RFC 4511).
+     * Real PingDS indexes automatically; we do a prefix scan.
      *
-     * @param baseDn  ex: "ou=users,dc=minipay,dc=ro"
-     * @param filter  ex: Map.of("mail", "john@example.com")
-     * @param limit   numarul maxim de rezultate
+     * @param baseDn  e.g.: "ou=users,dc=minipay,dc=ro"
+     * @param filter  e.g.: Map.of("mail", "john@example.com")
+     * @param limit   maximum number of results
      */
     public List<Entry> search(String baseDn, Map<String, String> filter, int limit)
             throws RocksDBException {
@@ -176,7 +180,7 @@ public class RocksDBStore {
             while (iter.isValid() && results.size() < limit) {
                 String key = new String(iter.key(), StandardCharsets.UTF_8);
 
-                // Filtram doar entry-urile sub baseDN
+                // Filter only entries under baseDN
                 if (key.endsWith(prefix)) {
                     Entry entry = deserialize(iter.value());
                     if (matchesFilter(entry, filter)) {
@@ -189,21 +193,21 @@ public class RocksDBStore {
         return results;
     }
 
-    /** Cauta dupa email (foloseste indexul cf_idx_mail) */
+    /** Searches by email (uses the cf_idx_mail index) */
     public Optional<Entry> findByMail(String mail) throws RocksDBException {
         byte[] dnBytes = db.get(cfIdxMail, mail.toLowerCase().getBytes(StandardCharsets.UTF_8));
         if (dnBytes == null) return Optional.empty();
         return get(new String(dnBytes, StandardCharsets.UTF_8));
     }
 
-    /** Cauta dupa uid (foloseste indexul cf_idx_uid) */
+    /** Searches by uid (uses the cf_idx_uid index) */
     public Optional<Entry> findByUid(String uid) throws RocksDBException {
         byte[] dnBytes = db.get(cfIdxUid, uid.toLowerCase().getBytes(StandardCharsets.UTF_8));
         if (dnBytes == null) return Optional.empty();
         return get(new String(dnBytes, StandardCharsets.UTF_8));
     }
 
-    // ─── Indexare ─────────────────────────────────────────────
+    // ─── Indexing ─────────────────────────────────────────────
 
     private void updateIndexes(WriteBatch batch, Entry entry) throws RocksDBException {
         byte[] dnBytes = entry.getDn().toLowerCase().getBytes(StandardCharsets.UTF_8);
@@ -256,7 +260,7 @@ public class RocksDBStore {
         try {
             return objectMapper.writeValueAsBytes(entry);
         } catch (Exception e) {
-            throw new RuntimeException("Serializare entry esuata", e);
+            throw new RuntimeException("Entry serialization failed", e);
         }
     }
 
@@ -264,7 +268,7 @@ public class RocksDBStore {
         try {
             return objectMapper.readValue(bytes, Entry.class);
         } catch (Exception e) {
-            throw new RuntimeException("Deserializare entry esuata", e);
+            throw new RuntimeException("Entry deserialization failed", e);
         }
     }
 
@@ -272,6 +276,6 @@ public class RocksDBStore {
     public void close() {
         if (db != null) db.close();
         if (dbOptions != null) dbOptions.close();
-        log.info("MiniDS RocksDB inchis.");
+        log.info("MiniDS RocksDB closed.");
     }
 }

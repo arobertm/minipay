@@ -2,26 +2,23 @@ package ro.minipay.minids.raft;
 
 import io.microraft.RaftEndpoint;
 
-/**
- * Reprezinta un nod din clusterul MiniDS.
- *
- * @param id       identificatorul unic (ex: "minids-0")
- * @param host     adresa de retea (ex: "localhost" sau "minids-0" pe Docker)
- * @param port     portul Raft — folosit de MicroRaft intern (ex: 8300)
- * @param httpPort portul HTTP — unde RaftMessageController asculta (ex: 8301)
- *
- * Conventie: httpPort = raftPort + 1
- *   minids-0: Raft=8300, HTTP=8301
- *   minids-1: Raft=8310, HTTP=8311
- *   minids-2: Raft=8320, HTTP=8321
- */
-public record MiniDSEndpoint(String id, String host, int port, int httpPort)
-        implements RaftEndpoint {
+import java.io.Serial;
+import java.io.Serializable;
 
-    /** Constructor scurt — calculeaza httpPort = raftPort + 1 */
-    public MiniDSEndpoint(String id, String host, int raftPort) {
-        this(id, host, raftPort, raftPort + 1);
-    }
+/**
+ * Represents a node in the MiniDS cluster.
+ *
+ * Implements Serializable because MicroRaft includes RaftEndpoint
+ * in Raft messages, and our transport uses Java serialization.
+ *
+ * @param id    unique identifier (e.g.: "minids-0")
+ * @param host  network address (e.g.: "localhost" or "minids-0" on Docker)
+ * @param port  HTTP port where RaftMessageController listens (e.g.: 8301)
+ */
+public record MiniDSEndpoint(String id, String host, int port) implements RaftEndpoint, Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     @Override
     public Comparable<String> getId() {

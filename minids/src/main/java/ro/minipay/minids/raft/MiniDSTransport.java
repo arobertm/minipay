@@ -1,11 +1,12 @@
 package ro.minipay.minids.raft;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.microraft.RaftEndpoint;
 import io.microraft.model.message.RaftMessage;
 import io.microraft.transport.Transport;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -13,19 +14,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Transport HTTP simplu pentru comunicarea intre noduri Raft.
+ * HTTP transport for communication between Raft nodes.
  *
- * In productie: gRPC sau Netty ar fi mai eficiente.
- * Pentru disertatie: HTTP/JSON e suficient si usor de debugat.
+ * Uses Java serialization (octet-stream) instead of JSON
+ * because RaftMessage is an abstract type (interface) and
+ * Jackson cannot deserialize polymorphically without additional configuration.
  */
 @Slf4j
 public class MiniDSTransport implements Transport {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
     public MiniDSTransport(String localNodeId, int localPort) {
-        // parametri pastrati pentru compatibilitate cu RaftConfig
+        // parameters kept for compatibility with RaftConfig
     }
 
     @Override
@@ -34,12 +35,17 @@ public class MiniDSTransport implements Transport {
 
         executor.submit(() -> {
             try {
-                URI uri = URI.create("http://" + endpoint.host() + ":" + endpoint.httpPort() + "/raft/message");
-                byte[] body = objectMapper.writeValueAsBytes(message);
+                URI uri = URI.create("http://" + endpoint.host() + ":" + endpoint.port() + "/raft/message");
+
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                try (ObjectOutputStream oos = new ObjectOutputStream(baos)) {
+                    oos.writeObject(message);
+                }
+                byte[] body = baos.toByteArray();
 
                 HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
                 conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Content-Type", "application/octet-stream");
                 conn.setDoOutput(true);
                 conn.setConnectTimeout(2000);
                 conn.setReadTimeout(2000);
@@ -50,12 +56,12 @@ public class MiniDSTransport implements Transport {
 
                 int status = conn.getResponseCode();
                 if (status != 200) {
-                    log.warn("Raft mesaj catre {} returnat status: {}", endpoint.id(), status);
+                    log.warn("Raft message to {} returned status: {}", endpoint.id(), status);
                 }
                 conn.disconnect();
 
             } catch (Exception e) {
-                log.debug("Nu pot trimite mesaj Raft catre {}: {}", endpoint.id(), e.getMessage());
+                log.debug("Cannot send Raft message to {}: {}", endpoint.id(), e.getMessage());
             }
         });
     }
@@ -64,7 +70,7 @@ public class MiniDSTransport implements Transport {
     public boolean isReachable(RaftEndpoint endpoint) {
         if (!(endpoint instanceof MiniDSEndpoint e)) return false;
         try {
-            URI uri = URI.create("http://" + e.host() + ":" + e.httpPort() + "/raft/health");
+            URI uri = URI.create("http://" + e.host() + ":" + e.port() + "/raft/health");
             HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
             conn.setRequestMethod("GET");
             conn.setConnectTimeout(1000);

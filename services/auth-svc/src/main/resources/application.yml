@@ -5,28 +5,20 @@ spring:
   application:
     name: auth-svc
 
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/minipay_auth}
-    username: ${SPRING_DATASOURCE_USERNAME:minipay}
-    password: ${SPRING_DATASOURCE_PASSWORD:minipay_secret}
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
-
   # Virtual Threads (Java 21 — Project Loom)
   threads:
     virtual:
       enabled: true
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+# MiniDS Directory Server (OAuth2 storage)
+minids:
+  base-url: ${MINIDS_ADDRESS:http://minids-0:8301}
+  connect-timeout: 5000
+  read-timeout: 10000
 
 # HashiCorp Vault
 vault:
@@ -36,7 +28,7 @@ vault:
 # gRPC server port
 grpc:
   server:
-    port: 9081
+    port: ${GRPC_PORT:9081}
 
 # Actuator / Prometheus
 management:
@@ -52,15 +44,14 @@ management:
       prometheus:
         enabled: true
 
-# PQC Settings
+# PQC & OAuth2 Settings
 minipay:
   auth:
-    # Algoritm JWT: DILITHIUM3 (post-quantum) sau RS256 (clasic)
     jwt-algorithm: DILITHIUM3
-    token-ttl-minutes: 60
+    access-token-ttl-minutes: 60
     refresh-token-ttl-days: 30
 
 logging:
   level:
-    ro.minipay: DEBUG
-    org.springframework.security: INFO
+    "[ro.minipay.auth]": DEBUG
+    "[org.springframework.security]": INFO

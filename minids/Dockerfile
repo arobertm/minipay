@@ -3,18 +3,12 @@ WORKDIR /app
 
 COPY pom.xml /app/pom.xml
 COPY minids/pom.xml /app/minids/pom.xml
-
-RUN mvn -f /app/pom.xml dependency:go-offline -pl minids -am -q
-
 COPY minids/src /app/minids/src
 
-RUN mvn -f /app/pom.xml clean package -pl minids -am -DskipTests
+RUN mvn -f /app/minids/pom.xml clean package -DskipTests
 
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 WORKDIR /app
-
-RUN addgroup -S minids && adduser -S minids -G minids
-USER minids
 
 COPY --from=build /app/minids/target/*.jar app.jar
 

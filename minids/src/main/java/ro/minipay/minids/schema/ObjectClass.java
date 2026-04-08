@@ -61,6 +61,19 @@ public enum ObjectClass {
     ),
 
     /**
+     * OAuth2 Authorization Consent — user approval of scopes to a client.
+     * New — specific to OAuth2 authorization flow.
+     *
+     * Example DN: cn=test-client+john.doe,ou=consents,dc=minipay,dc=ro
+     * User "john.doe" approved client "test-client" for certain scopes.
+     */
+    OAUTH2_CONSENT(
+        "oauth2Consent",
+        Set.of("clientId", "principalName", "scopes"),
+        Set.of("expiresAt", "createdAt", "authorities")
+    ),
+
+    /**
      * Tokenized card — vault entry.
      * New — no equivalent in standard PingDS.
      */

@@ -274,16 +274,17 @@ services:
 
   minids-0:
     build:
-      context: ./minids
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: minids/Dockerfile
     container_name: minipay-minids-0
     profiles: ["payments", "all"]
     environment:
       NODE_ID: minids-0
       RAFT_PORT: 8300
       API_PORT: 8301
-      RAFT_PEERS: minids-0:8300,minids-1:8310,minids-2:8320
+      RAFT_PEERS: minids-0:8301,minids-1:8311,minids-2:8321
       DATA_DIR: /data/rocksdb
+      RAFT_RESOLVE_LOCALHOST: "false"
     ports:
       - "8300:8300"
       - "8301:8301"
@@ -294,16 +295,17 @@ services:
 
   minids-1:
     build:
-      context: ./minids
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: minids/Dockerfile
     container_name: minipay-minids-1
     profiles: ["payments", "all"]
     environment:
       NODE_ID: minids-1
       RAFT_PORT: 8310
       API_PORT: 8311
-      RAFT_PEERS: minids-0:8300,minids-1:8310,minids-2:8320
+      RAFT_PEERS: minids-0:8301,minids-1:8311,minids-2:8321
       DATA_DIR: /data/rocksdb
+      RAFT_RESOLVE_LOCALHOST: "false"
     ports:
       - "8310:8310"
       - "8311:8311"
@@ -314,16 +316,17 @@ services:
 
   minids-2:
     build:
-      context: ./minids
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: minids/Dockerfile
     container_name: minipay-minids-2
     profiles: ["payments", "all"]
     environment:
       NODE_ID: minids-2
       RAFT_PORT: 8320
       API_PORT: 8321
-      RAFT_PEERS: minids-0:8300,minids-1:8310,minids-2:8320
+      RAFT_PEERS: minids-0:8301,minids-1:8311,minids-2:8321
       DATA_DIR: /data/rocksdb
+      RAFT_RESOLVE_LOCALHOST: "false"
     ports:
       - "8320:8320"
       - "8321:8321"

@@ -100,6 +100,7 @@ public class RocksDBStore {
             createOU("ou=tokens,dc=minipay,dc=ro",   "organizationalUnit", "ou", "tokens");
             createOU("ou=sessions,dc=minipay,dc=ro", "organizationalUnit", "ou", "sessions");
             createOU("ou=clients,dc=minipay,dc=ro",  "organizationalUnit", "ou", "clients");
+            createOU("ou=consents,dc=minipay,dc=ro", "organizationalUnit", "ou", "consents");
             createOU("ou=vault,dc=minipay,dc=ro",    "organizationalUnit", "ou", "vault");
             log.info("DIT initialized: {}", baseDn);
         }

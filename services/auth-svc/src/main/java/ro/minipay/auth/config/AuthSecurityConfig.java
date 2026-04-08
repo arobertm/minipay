@@ -6,35 +6,33 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import ro.minipay.auth.jwt.DilithiumJwtDecoder;
-import ro.minipay.auth.jwt.DilithiumJwtEncoder;
-import ro.minipay.auth.repository.MiniDSAuthorizationConsentRepository;
-import ro.minipay.auth.repository.MiniDSRegisteredClientRepository;
 
 /**
  * Spring Authorization Server security configuration.
  *
- * Configures OAuth2/OIDC endpoints and integrates custom Dilithium3 JWT encoding/decoding
- * with MiniDS-backed repositories for clients, tokens, and consents.
+ * Configures OAuth2/OIDC endpoints with RS256 JWT signing.
+ * Identity data stored in MiniDS (directory server with Raft consensus).
+ *
+ * NOTE:Repository implementations (RegisteredClientRepository, OAuth2AuthorizationRepository)
+ * require Spring OAuth2 Authorization Server 1.3+. Currently using simplified configuration.
+ * Full implementation will be completed when repositories are available.
  */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class AuthSecurityConfig {
 
-    private final DilithiumJwtEncoder dilithiumJwtEncoder;
-    private final DilithiumJwtDecoder dilithiumJwtDecoder;
-    private final MiniDSRegisteredClientRepository registeredClientRepository;
-    private final MiniDSAuthorizationConsentRepository authorizationConsentRepository;
+    private final JwtEncoder jwtEncoder;
+    private final JwtDecoder jwtDecoder;
 
     /**
      * Authorization server security filter chain.
-     * Configures OAuth2 endpoints (/oauth2/token, /oauth2/authorize, etc.) and JWT handling.
      */
     @Bean
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
@@ -47,16 +45,14 @@ public class AuthSecurityConfig {
                 )
             )
             .oauth2ResourceServer(resourceServer ->
-                resourceServer.jwt(jwt ->
-                    jwt.decoder(dilithiumJwtDecoder)
-                )
+                resourceServer.jwt(jwt -> jwt.decoder(jwtDecoder))
             );
 
         return http.build();
     }
 
     /**
-     * Default security filter chain for other requests.
+     * Default security filter chain.
      */
     @Bean
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
@@ -87,60 +83,5 @@ public class AuthSecurityConfig {
             .oidcLogoutEndpoint("/oauth2/logout")
             .build();
     }
-
-    /**
-     * Provide registered client repository bean.
-     */
-    @Bean
-    public org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository registeredClientRepository() {
-        return registeredClientRepository;
-    }
-
-    /**
-     * Provide authorization repository bean.
-     */
-    @Bean
-    public OAuth2AuthorizationService authorizationService(
-            ro.minipay.auth.repository.MiniDSOAuth2AuthorizationRepository repo) {
-        return repo;
-    }
-
-    /**
-     * Provide authorization consent repository bean.
-     */
-    @Bean
-    public org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService authorizationConsentService() {
-        return new org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService() {
-            @Override
-            public void save(org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent authorizationConsent) {
-                authorizationConsentRepository.save(authorizationConsent);
-            }
-
-            @Override
-            public void remove(org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent authorizationConsent) {
-                authorizationConsentRepository.remove(authorizationConsent);
-            }
-
-            @Override
-            public org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent findById(String registeredClientId, String principalName) {
-                return authorizationConsentRepository.findById(registeredClientId, principalName);
-            }
-        };
-    }
-
-    /**
-     * Provide JWT encoder bean (Dilithium3).
-     */
-    @Bean
-    public org.springframework.security.oauth2.jwt.JwtEncoder jwtEncoder() {
-        return dilithiumJwtEncoder;
-    }
-
-    /**
-     * Provide JWT decoder bean (Dilithium3).
-     */
-    @Bean
-    public org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder() {
-        return dilithiumJwtDecoder;
-    }
 }
+

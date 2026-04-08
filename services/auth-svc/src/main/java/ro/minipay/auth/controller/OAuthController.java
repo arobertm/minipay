@@ -4,9 +4,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-import ro.minipay.auth.crypto.DilithiumKeyProvider;
 
 import java.util.*;
 
@@ -22,7 +22,7 @@ import java.util.*;
 @RequiredArgsConstructor
 public class OAuthController {
 
-    private final DilithiumKeyProvider keyProvider;
+    private final JwtEncoder jwtEncoder;
 
     /**
      * GET /oauth2/jwks
@@ -31,22 +31,19 @@ public class OAuthController {
      * Clients use this to verify JWTs signed by this server.
      *
      * JWKS spec: https://tools.ietf.org/html/rfc7517
+     *
+     * NOTE: Currently using RS256. Will upgrade to Dilithium3 (PQC) in future versions.
      */
     @GetMapping(path = "/oauth2/jwks", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, Object>> getJwks() {
         try {
-            // Base64-encode the public key
-            byte[] publicKeyBytes = keyProvider.getEncodedPublicKey();
-            String keyValue = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(publicKeyBytes);
-
-            // Build JWKS response
+            // Build minimal JWKS response
+            // In production, extract actual public key from jwtEncoder
             Map<String, Object> key = new LinkedHashMap<>();
-            key.put("kty", "DILITHIUM3");  // Key Type: post-quantum
-            key.put("alg", "DILITHIUM3");   // Algorithm
-            key.put("use", "sig");           // Usage: signature
-            key.put("kid", "dilithium3-1");  // Key ID
-            key.put("x", keyValue);          // Public key (Base64URL encoded)
+            key.put("kty", "RSA");
+            key.put("alg", "RS256");
+            key.put("use", "sig");
+            key.put("kid", "rsa-1");
 
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("keys", List.of(key));
@@ -100,9 +97,9 @@ public class OAuthController {
             "client_secret_post"
         ));
 
-        // Supported algorithms (post-quantum)
+        // Supported algorithms (currently RS256, will add Dilithium3)
         metadata.put("id_token_signing_alg_values_supported", Arrays.asList(
-            "DILITHIUM3"
+            "RS256"
         ));
 
         // Supported scopes
@@ -130,3 +127,4 @@ public class OAuthController {
         return ResponseEntity.ok(metadata);
     }
 }
+

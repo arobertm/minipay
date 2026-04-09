@@ -16,62 +16,69 @@ services:
 
   auth-svc:
     build:
-      context: ./services/auth-svc
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/auth-svc/Dockerfile
+    image: minipay/auth-svc:latest
     container_name: minipay-auth
     profiles: ["auth", "all"]
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/minipay_auth
-      SPRING_DATASOURCE_USERNAME: minipay
-      SPRING_DATASOURCE_PASSWORD: minipay_secret
+      MINIDS_ADDRESS: minids-1:8311
       VAULT_URI: http://vault:8200
       VAULT_TOKEN: minipay-vault-token
       SERVER_PORT: 8081
+      GRPC_PORT: 9081
     ports:
       - "8081:8081"
+      - "9081:9081"
     depends_on:
-      postgres:
-        condition: service_healthy
-      vault:
+      minids-1:
         condition: service_healthy
     networks:
       - minipay-net
 
   user-svc:
     build:
-      context: ./services/user-svc
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/user-svc/Dockerfile
+    image: minipay/user-svc:latest
     container_name: minipay-user
     profiles: ["auth", "all"]
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/minipay_users
-      SPRING_DATASOURCE_USERNAME: minipay
-      SPRING_DATASOURCE_PASSWORD: minipay_secret
+      MINIDS_ADDRESS: http://minids-1:8311
+      AUTH_JWK_URI: http://auth-svc:8081/oauth2/jwks-rs256
+      AUTH_ISSUER_URI: http://auth-svc:8081
       SERVER_PORT: 8082
+      GRPC_PORT: 9082
     ports:
       - "8082:8082"
+      - "9082:9082"
     depends_on:
-      postgres:
+      minids-1:
         condition: service_healthy
+      auth-svc:
+        condition: service_started
     networks:
       - minipay-net
 
   session-svc:
     build:
-      context: ./services/session-svc
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/session-svc/Dockerfile
+    image: minipay/session-svc:latest
     container_name: minipay-session
     profiles: ["auth", "all"]
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/minipay_sessions
-      SPRING_DATASOURCE_USERNAME: minipay
-      SPRING_DATASOURCE_PASSWORD: minipay_secret
+      MINIDS_ADDRESS: http://minids-1:8311
+      AUTH_JWK_URI: http://auth-svc:8081/oauth2/jwks-rs256
+      AUTH_ISSUER_URI: http://auth-svc:8081
       SERVER_PORT: 8083
     ports:
       - "8083:8083"
     depends_on:
-      postgres:
+      minids-1:
         condition: service_healthy
+      auth-svc:
+        condition: service_started
     networks:
       - minipay-net
 
@@ -81,41 +88,49 @@ services:
 
   gateway-svc:
     build:
-      context: ./services/gateway-svc
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/gateway-svc/Dockerfile
+    image: minipay/gateway-svc:latest
     container_name: minipay-gateway
     profiles: ["payments", "all"]
     environment:
       SERVER_PORT: 8084
-      GRPC_VAULT_ADDRESS: vault-svc:9085
-      GRPC_FRAUD_ADDRESS: fraud-svc:9090
-      GRPC_NETWORK_ADDRESS: network-svc:9086
-      GRPC_TDS_ADDRESS: tds-svc:9088
-      AUTH_JWKS_URI: http://auth-svc:8081/oauth2/jwks
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUTH_JWK_URI: http://auth-svc:8081/oauth2/jwks-rs256
+      AUTH_ISSUER_URI: http://auth-svc:8081
+      VAULT_URL: http://vault-svc:8085
+      FRAUD_URL: http://fraud-svc:8090
+      NETWORK_URL: http://network-svc:8086
     ports:
       - "8084:8084"
     depends_on:
-      - kafka
+      minids-1:
+        condition: service_healthy
+      auth-svc:
+        condition: service_started
+      vault-svc:
+        condition: service_started
     networks:
       - minipay-net
 
   vault-svc:
     build:
-      context: ./services/vault-svc
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/vault-svc/Dockerfile
+    image: minipay/vault-svc:latest
     container_name: minipay-vault-svc
     profiles: ["payments", "all"]
     environment:
       SERVER_PORT: 8085
-      MINIDS_ADDRESS: minids-0:8301
-      VAULT_URI: http://vault:8200
-      VAULT_TOKEN: minipay-vault-token
+      MINIDS_ADDRESS: http://minids-1:8311
+      AUTH_JWK_URI: http://auth-svc:8081/oauth2/jwks-rs256
+      AUTH_ISSUER_URI: http://auth-svc:8081
     ports:
       - "8085:8085"
     depends_on:
-      vault:
+      minids-1:
         condition: service_healthy
+      auth-svc:
+        condition: service_started
     networks:
       - minipay-net
 
@@ -123,6 +138,7 @@ services:
     build:
       context: ./services/network-svc
       dockerfile: Dockerfile
+    image: minipay/network-svc:latest
     container_name: minipay-network
     profiles: ["payments", "all"]
     environment:
@@ -137,6 +153,7 @@ services:
     build:
       context: ./services/issuer-svc
       dockerfile: Dockerfile
+    image: minipay/issuer-svc:latest
     container_name: minipay-issuer
     profiles: ["payments", "all"]
     environment:
@@ -156,6 +173,7 @@ services:
     build:
       context: ./services/tds-svc
       dockerfile: Dockerfile
+    image: minipay/tds-svc:latest
     container_name: minipay-tds
     profiles: ["payments", "all"]
     environment:
@@ -175,6 +193,7 @@ services:
     build:
       context: ./services/settlement-svc
       dockerfile: Dockerfile
+    image: minipay/settlement-svc:latest
     container_name: minipay-settlement
     profiles: ["payments", "all"]
     environment:
@@ -201,6 +220,7 @@ services:
     build:
       context: ./services/fraud-svc
       dockerfile: Dockerfile
+    image: minipay/fraud-svc:latest
     container_name: minipay-fraud
     profiles: ["fraud", "all"]
     environment:
@@ -214,6 +234,7 @@ services:
     build:
       context: ./services/audit-svc
       dockerfile: Dockerfile
+    image: minipay/audit-svc:latest
     container_name: minipay-audit
     profiles: ["fraud", "all"]
     environment:
@@ -236,6 +257,7 @@ services:
     build:
       context: ./services/psd2-svc
       dockerfile: Dockerfile
+    image: minipay/psd2-svc:latest
     container_name: minipay-psd2
     profiles: ["fraud", "all"]
     environment:
@@ -255,6 +277,7 @@ services:
     build:
       context: ./services/notif-svc
       dockerfile: Dockerfile
+    image: minipay/notif-svc:latest
     container_name: minipay-notif
     profiles: ["fraud", "all"]
     environment:
@@ -276,6 +299,7 @@ services:
     build:
       context: .
       dockerfile: minids/Dockerfile
+    image: minipay/minids:latest
     container_name: minipay-minids-0
     profiles: ["payments", "all"]
     environment:
@@ -288,6 +312,12 @@ services:
     ports:
       - "8300:8300"
       - "8301:8301"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8301/minids/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     volumes:
       - minids_0_data:/data/rocksdb
     networks:
@@ -297,6 +327,7 @@ services:
     build:
       context: .
       dockerfile: minids/Dockerfile
+    image: minipay/minids:latest
     container_name: minipay-minids-1
     profiles: ["payments", "all"]
     environment:
@@ -309,6 +340,12 @@ services:
     ports:
       - "8310:8310"
       - "8311:8311"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8311/minids/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     volumes:
       - minids_1_data:/data/rocksdb
     networks:
@@ -318,6 +355,7 @@ services:
     build:
       context: .
       dockerfile: minids/Dockerfile
+    image: minipay/minids:latest
     container_name: minipay-minids-2
     profiles: ["payments", "all"]
     environment:
@@ -330,6 +368,12 @@ services:
     ports:
       - "8320:8320"
       - "8321:8321"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8321/minids/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     volumes:
       - minids_2_data:/data/rocksdb
     networks:

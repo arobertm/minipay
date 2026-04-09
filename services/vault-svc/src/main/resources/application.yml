@@ -1,0 +1,45 @@
+server:
+  port: ${SERVER_PORT:8085}
+
+spring:
+  application:
+    name: vault-svc
+
+  threads:
+    virtual:
+      enabled: true
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_JWK_URI:http://auth-svc:8081/oauth2/jwks-rs256}
+          issuer-uri: ${AUTH_ISSUER_URI:http://auth-svc:8081}
+
+# MiniDS Directory Server
+minids:
+  base-url: ${MINIDS_ADDRESS:http://minids-1:8311}
+  connect-timeout: 5000
+  read-timeout: 10000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    "[ro.minipay.vault]": DEBUG
+    "[org.springframework.security]": INFO

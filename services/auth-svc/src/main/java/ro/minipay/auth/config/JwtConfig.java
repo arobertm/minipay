@@ -6,79 +6,113 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
-import com.nimbusds.jose.util.Base64;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
+import org.bouncycastle.pqc.crypto.crystals.dilithium.DilithiumKeyGenerationParameters;
+import org.bouncycastle.pqc.crypto.crystals.dilithium.DilithiumKeyPairGenerator;
+import org.bouncycastle.pqc.crypto.crystals.dilithium.DilithiumParameters;
+import org.bouncycastle.pqc.crypto.crystals.dilithium.DilithiumPrivateKeyParameters;
+import org.bouncycastle.pqc.crypto.crystals.dilithium.DilithiumPublicKeyParameters;
+import org.bouncycastle.pqc.jcajce.provider.BouncyCastlePQCProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Security;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.util.UUID;
 
 /**
- * JWT configuration using RSA-256.
+ * JWT configuration — RS256 (RSA-2048) + CRYSTALS-Dilithium3 (NIST FIPS 204).
  *
- * NOTE: Currently using RS256 (RSA-SHA256) for JWT signing.
- * Plan to upgrade to CRYSTALS-Dilithium3 (NIST FIPS 204 post-quantum)
- * once Bouncycastle 1.79+ provides mature Dilithium3 support.
+ * Two independent signing paths:
+ *  - RS256  → standard OAuth2/OIDC, used by Spring Authorization Server
+ *  - DILITHIUM3 → post-quantum, exposed via /auth/token/pqc and JWKS
  *
- * For now, RS256 is sufficient for OAuth2/OIDC and maintains compatibility
- * with standard JWT clients and verification libraries.
+ * Dilithium3 uses the low-level Bouncy Castle API (BC 1.78.1+) directly,
+ * because Nimbus JOSE does not support PQC algorithms yet.
  */
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class JwtConfig {
 
-    /**
-     * Generate RSA keypair for JWT signing.
-     */
-    @Bean
-    public KeyPair keyPair() throws Exception {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(2048);
-        KeyPair keyPair = keyPairGenerator.generateKeyPair();
-        log.info("Generated RSA-2048 keypair for JWT signing");
-        return keyPair;
+    @PostConstruct
+    public void registerBouncyCastlePQC() {
+        if (Security.getProvider("BCPQC") == null) {
+            Security.addProvider(new BouncyCastlePQCProvider());
+            log.info("Registered Bouncy Castle PQC provider (BCPQC)");
+        }
     }
 
+    // ─── RSA-2048 (RS256) ──────────────────────────────────────────────────────
+
     /**
-     * Create JWT encoder (signer).
+     * RSA-2048 keypair — used by Spring Authorization Server for standard JWTs.
      */
     @Bean
-    public JwtEncoder jwtEncoder(KeyPair keyPair) throws JOSEException {
-        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
-        RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
+    public KeyPair rsaKeyPair() throws Exception {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+        kpg.initialize(2048);
+        KeyPair kp = kpg.generateKeyPair();
+        log.info("Generated RSA-2048 keypair for RS256 JWT signing");
+        return kp;
+    }
 
-        RSAKey rsaKey = new RSAKey.Builder(publicKey)
-            .privateKey(privateKey)
-            .keyID(UUID.randomUUID().toString())
+    @Bean
+    public RSAPublicKey rsaPublicKey(KeyPair rsaKeyPair) {
+        return (RSAPublicKey) rsaKeyPair.getPublic();
+    }
+
+    @Bean
+    public JwtEncoder jwtEncoder(KeyPair rsaKeyPair) throws JOSEException {
+        RSAKey rsaKey = new RSAKey.Builder((RSAPublicKey) rsaKeyPair.getPublic())
+            .privateKey((RSAPrivateKey) rsaKeyPair.getPrivate())
+            .keyID("rsa-2048-1")
             .build();
-
         JWKSource<SecurityContext> jwkSource = new ImmutableJWKSet<>(new JWKSet(rsaKey));
         return new NimbusJwtEncoder(jwkSource);
     }
 
+    @Bean
+    public JwtDecoder jwtDecoder(KeyPair rsaKeyPair) {
+        return NimbusJwtDecoder.withPublicKey((RSAPublicKey) rsaKeyPair.getPublic()).build();
+    }
+
+    // ─── CRYSTALS-Dilithium3 (NIST FIPS 204) ──────────────────────────────────
+
     /**
-     * Create JWT decoder (verifier).
+     * Dilithium3 keypair using BC low-level API.
+     *
+     * NIST FIPS 204 security level 3 — 256-bit quantum security.
+     * Public key: 1952 bytes | Private key: 4000 bytes | Signature: 3293 bytes
      */
     @Bean
-    public JwtDecoder jwtDecoder(KeyPair keyPair) throws JOSEException {
-        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
+    public AsymmetricCipherKeyPair dilithiumKeyPair() {
+        DilithiumKeyPairGenerator kpg = new DilithiumKeyPairGenerator();
+        kpg.init(new DilithiumKeyGenerationParameters(
+            new java.security.SecureRandom(),
+            DilithiumParameters.dilithium3
+        ));
+        AsymmetricCipherKeyPair kp = kpg.generateKeyPair();
+        log.info("Generated CRYSTALS-Dilithium3 keypair (NIST FIPS 204, level 3)");
+        return kp;
+    }
 
-        RSAKey rsaKey = new RSAKey.Builder(publicKey)
-            .keyID(UUID.randomUUID().toString())
-            .build();
+    @Bean
+    public DilithiumPublicKeyParameters dilithiumPublicKey(AsymmetricCipherKeyPair dilithiumKeyPair) {
+        return (DilithiumPublicKeyParameters) dilithiumKeyPair.getPublic();
+    }
 
-        JWKSource<SecurityContext> jwkSource = new ImmutableJWKSet<>(new JWKSet(rsaKey));
-        return NimbusJwtDecoder.withPublicKey(publicKey).build();
+    @Bean
+    public DilithiumPrivateKeyParameters dilithiumPrivateKey(AsymmetricCipherKeyPair dilithiumKeyPair) {
+        return (DilithiumPrivateKeyParameters) dilithiumKeyPair.getPrivate();
     }
 }
-

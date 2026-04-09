@@ -1,0 +1,399 @@
+{
+  "info": {
+    "name": "MiniPay — user-svc",
+    "description": "Colectie dedicata pentru user-svc (port 8082).\n\nStorage: MiniDS (ou=users,dc=minipay,dc=ro)\nPasswords: Argon2id (OWASP 2023)\nJWT: RS256 sau Dilithium3 emis de auth-svc\n\nFlux recomandat:\n1. Register User (public)\n2. Issue PQC Token din auth-svc\n3. Get / Update / Delete cu JWT in header",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "user_url",  "value": "http://localhost:8082", "type": "string" },
+    { "key": "auth_url",  "value": "http://localhost:8081", "type": "string" },
+    { "key": "user_id",   "value": "", "type": "string" },
+    { "key": "jwt_token", "value": "", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{user_url}}/actuator/health",
+            "description": "Verifica ca user-svc e UP."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status UP', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql('UP');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Inregistrare (public)",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ion.popescu@minipay.ro\",\n  \"password\": \"Parola@2026!\",\n  \"firstName\": \"Ion\",\n  \"lastName\": \"Popescu\",\n  \"role\": \"USER\"\n}"
+            },
+            "description": "Inregistreaza un utilizator nou. Endpoint PUBLIC — fara JWT.\nParola e hashed cu Argon2id inainte de stocare."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Are userId', () => pm.expect(json).to.have.property('userId'));",
+                  "pm.test('Email corect', () => pm.expect(json.email).to.eql('ion.popescu@minipay.ro'));",
+                  "pm.test('Status ACTIVE', () => pm.expect(json.status).to.eql('ACTIVE'));",
+                  "pm.test('Role USER', () => pm.expect(json.role).to.eql('USER'));",
+                  "pm.test('Fara parola in raspuns', () => {",
+                  "    pm.expect(json).to.not.have.property('password');",
+                  "    pm.expect(json).to.not.have.property('passwordHash');",
+                  "});",
+                  "pm.collectionVariables.set('user_id', json.userId);",
+                  "console.log('userId salvat:', json.userId);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Register Merchant",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"merchant@shop.ro\",\n  \"password\": \"MerchantPass@2026\",\n  \"firstName\": \"Magazin\",\n  \"lastName\": \"Online SRL\",\n  \"role\": \"MERCHANT\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Role MERCHANT', () => pm.expect(pm.response.json().role).to.eql('MERCHANT'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Register — email duplicat → 400",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ion.popescu@minipay.ro\",\n  \"password\": \"AltaParola@2026\",\n  \"firstName\": \"Ion\",\n  \"lastName\": \"Duplicat\",\n  \"role\": \"USER\"\n}"
+            },
+            "description": "Acelasi email ca la 'Register User'. Trebuie sa returneze 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bad Request 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Mesaj email duplicat', () => {",
+                  "    pm.expect(pm.response.json().error).to.include('already registered');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Register — parola scurta → 400",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nou@minipay.ro\",\n  \"password\": \"scurt\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\",\n  \"role\": \"USER\"\n}"
+            },
+            "description": "Parola sub 8 caractere. Spring Validation → 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Validation error 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Profil (JWT required)",
+      "item": [
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{user_url}}/users/{{user_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "user_id e salvat automat de 'Register User'.\njwt_token se seteaza manual sau din auth-svc."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('userId match', () => pm.expect(json.userId).to.eql(pm.collectionVariables.get('user_id')));",
+                  "pm.test('Email prezent', () => pm.expect(json).to.have.property('email'));",
+                  "pm.test('Status ACTIVE', () => pm.expect(json.status).to.eql('ACTIVE'));",
+                  "pm.test('Fara passwordHash', () => pm.expect(json).to.not.have.property('passwordHash'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Find by Email",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{user_url}}/users?email=ion.popescu@minipay.ro",
+              "host": ["{{user_url}}"],
+              "path": ["users"],
+              "query": [
+                { "key": "email", "value": "ion.popescu@minipay.ro" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Email corect', () => {",
+                  "    pm.expect(pm.response.json().email).to.eql('ion.popescu@minipay.ro');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "url": "{{user_url}}/users/{{user_id}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ioan\",\n  \"lastName\": \"Popescu-Updated\"\n}"
+            },
+            "description": "Actualizeaza firstName si/sau lastName. Campurile null sunt ignorate."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('firstName actualizat', () => pm.expect(json.firstName).to.eql('Ioan'));",
+                  "pm.test('lastName actualizat', () => pm.expect(json.lastName).to.eql('Popescu-Updated'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Get User inexistent → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{user_url}}/users/00000000-0000-0000-0000-000000000000",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Not Found 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Mesaj error', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Parola (JWT required)",
+      "item": [
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users/{{user_id}}/change-password",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Parola@2026!\",\n  \"newPassword\": \"NovaParola@2026!\"\n}"
+            },
+            "description": "Verifica parola curenta cu Argon2id.\nSalveaza noul hash Argon2id in MiniDS."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Mesaj succes', () => {",
+                  "    pm.expect(pm.response.json().message).to.include('updated');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Change Password — parola gresita → 400",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users/{{user_id}}/change-password",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"parolaCompletGresita\",\n  \"newPassword\": \"NovaParola@2026!\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bad Request 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Mesaj parola gresita', () => {",
+                  "    pm.expect(pm.response.json().error).to.include('incorrect');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Stergere GDPR (JWT required)",
+      "item": [
+        {
+          "name": "Delete User — GDPR Erasure",
+          "request": {
+            "method": "DELETE",
+            "url": "{{user_url}}/users/{{user_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Soft-delete cu GDPR Art.17.\n\nSeteaza:\n  status = DELETED\n  firstName = [deleted]\n  lastName = [deleted]\n  email = deleted-{id}@minipay.ro\n  passwordHash = empty\n\nInregistrarea ramane in MiniDS pentru integritatea istoricului."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('No Content 204', () => pm.response.to.have.status(204));",
+                  "console.log('GDPR erasure aplicat pentru userId:', pm.collectionVariables.get('user_id'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Get User dupa Delete — verifica GDPR",
+          "request": {
+            "method": "GET",
+            "url": "{{user_url}}/users/{{user_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Dupa DELETE, inregistrarea exista dar cu PII sters."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status DELETED', () => pm.expect(json.status).to.eql('DELETED'));",
+                  "pm.test('firstName sters', () => pm.expect(json.firstName).to.eql('[deleted]'));",
+                  "pm.test('lastName sters', () => pm.expect(json.lastName).to.eql('[deleted]'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+
+  ]
+}

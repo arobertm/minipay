@@ -1,0 +1,353 @@
+{
+  "info": {
+    "name": "MiniPay — session-svc",
+    "description": "Colectie dedicata pentru session-svc (port 8083).\n\nStorage: MiniDS (ou=sessions,dc=minipay,dc=ro)\nJWT: RS256 emis de auth-svc (GET/DELETE necesita Bearer token)\nPOST /sessions este PUBLIC (auth-svc il apeleaza dupa login)\n\nFlux recomandat:\n1. Create Session (public)\n2. Get Session by ID\n3. List User Sessions\n4. Touch Session\n5. Revoke Session / Revoke All",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "session_url", "value": "http://localhost:8083", "type": "string" },
+    { "key": "auth_url",    "value": "http://localhost:8081", "type": "string" },
+    { "key": "session_id",  "value": "", "type": "string" },
+    { "key": "user_id",     "value": "test-user-001", "type": "string" },
+    { "key": "jwt_token",   "value": "", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{session_url}}/actuator/health",
+            "description": "Verifica ca session-svc e UP."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status UP', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql('UP');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Sesiuni (CRUD)",
+      "item": [
+        {
+          "name": "Create Session",
+          "request": {
+            "method": "POST",
+            "url": "{{session_url}}/sessions",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{user_id}}\",\n  \"deviceId\": \"device-android-001\",\n  \"ipAddress\": \"192.168.1.100\",\n  \"userAgent\": \"MiniPay/1.0 Android/14\",\n  \"ttlSeconds\": 3600\n}"
+            },
+            "description": "Creeaza o sesiune noua dupa login.\nEndpoint PUBLIC — fara JWT.\nApelat de auth-svc dupa emiterea tokenului."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Are sessionId', () => pm.expect(json).to.have.property('sessionId'));",
+                  "pm.test('Status ACTIVE', () => pm.expect(json.status).to.eql('ACTIVE'));",
+                  "pm.test('userId corect', () => pm.expect(json.userId).to.eql(pm.collectionVariables.get('user_id')));",
+                  "pm.test('Are expiresAt', () => pm.expect(json).to.have.property('expiresAt'));",
+                  "pm.collectionVariables.set('session_id', json.sessionId);",
+                  "console.log('sessionId salvat:', json.sessionId);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Create Session — alt device",
+          "request": {
+            "method": "POST",
+            "url": "{{session_url}}/sessions",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{user_id}}\",\n  \"deviceId\": \"device-ios-002\",\n  \"ipAddress\": \"10.0.0.55\",\n  \"userAgent\": \"MiniPay/1.0 iOS/17\",\n  \"ttlSeconds\": 7200\n}"
+            },
+            "description": "Al doilea device pentru acelasi user — pentru a testa 'List Sessions' si 'Revoke All'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "pm.test('deviceId iOS', () => pm.expect(pm.response.json().deviceId).to.eql('device-ios-002'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Create Session — validation error (userId lipsa)",
+          "request": {
+            "method": "POST",
+            "url": "{{session_url}}/sessions",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"device-x\",\n  \"ipAddress\": \"1.2.3.4\"\n}"
+            },
+            "description": "userId e @NotBlank — trebuie sa returneze 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bad Request 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Get Session by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{session_url}}/sessions/{{session_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "session_id e salvat automat de 'Create Session'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('sessionId match', () => pm.expect(json.sessionId).to.eql(pm.collectionVariables.get('session_id')));",
+                  "pm.test('Status ACTIVE', () => pm.expect(json.status).to.eql('ACTIVE'));",
+                  "pm.test('Are expiresAt', () => pm.expect(json).to.have.property('expiresAt'));",
+                  "pm.test('Are lastSeenAt', () => pm.expect(json).to.have.property('lastSeenAt'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Get Session inexistenta → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{session_url}}/sessions/00000000-0000-0000-0000-000000000000",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Not Found 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Mesaj error', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "List Active Sessions (userId)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{session_url}}/sessions?userId={{user_id}}",
+              "host": ["{{session_url}}"],
+              "path": ["sessions"],
+              "query": [
+                { "key": "userId", "value": "{{user_id}}" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Returneaza toate sesiunile ACTIVE ale userului (neexpirate)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('E array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "pm.test('Cel putin 1 sesiune', () => pm.expect(pm.response.json().length).to.be.at.least(1));",
+                  "pm.test('Toate ACTIVE', () => {",
+                  "    pm.response.json().forEach(s => pm.expect(s.status).to.eql('ACTIVE'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Touch Session (update lastSeenAt)",
+          "request": {
+            "method": "POST",
+            "url": "{{session_url}}/sessions/{{session_id}}/touch",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Actualizeaza lastSeenAt la momentul curent.\nApelat de gateway-svc la fiecare request autentificat."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('No Content 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Revocare",
+      "item": [
+        {
+          "name": "Revoke Session (logout device)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{session_url}}/sessions/{{session_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Revoca o singura sesiune.\nUzual: logout de pe un device specific."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('No Content 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Get Session dupa Revoke — verifica status",
+          "request": {
+            "method": "GET",
+            "url": "{{session_url}}/sessions/{{session_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Sesiunea trebuie sa fie REVOKED dupa DELETE."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status REVOKED', () => pm.expect(pm.response.json().status).to.eql('REVOKED'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Revoke All Sessions (logout all devices)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{session_url}}/sessions?userId={{user_id}}",
+              "host": ["{{session_url}}"],
+              "path": ["sessions"],
+              "query": [
+                { "key": "userId", "value": "{{user_id}}" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Revoca TOATE sesiunile active ale userului.\nUzual: logout fortat dupa detectie frauda sau compromitere cont."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Are revokedCount', () => pm.expect(json).to.have.property('revokedCount'));",
+                  "pm.test('Are message', () => pm.expect(json.message).to.include('revoked'));",
+                  "console.log('Sesiuni revocate:', json.revokedCount);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "List Sessions dupa Revoke All — array gol",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{session_url}}/sessions?userId={{user_id}}",
+              "host": ["{{session_url}}"],
+              "path": ["sessions"],
+              "query": [
+                { "key": "userId", "value": "{{user_id}}" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Dupa Revoke All nu mai exista sesiuni active."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Array gol', () => pm.expect(pm.response.json().length).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+
+  ]
+}

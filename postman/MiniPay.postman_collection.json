@@ -1,0 +1,946 @@
+{
+  "info": {
+    "name": "MiniPay — Auth, Directory & Users",
+    "description": "Postman collection for MiniDS Directory Server, auth-svc OAuth2/OIDC, and user-svc.\n\n**Environments:**\n- `Local` — services running directly on localhost (dev mode)\n- `Docker` — services running via docker-compose\n\n**Ports:**\n- minids-0: 8301  |  minids-1: 8311  |  minids-2: 8321\n- auth-svc: 8081\n- user-svc: 8082",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "minids_url", "value": "http://localhost:8311", "type": "string" },
+    { "key": "auth_url",   "value": "http://localhost:8081", "type": "string" },
+    { "key": "user_url",   "value": "http://localhost:8082", "type": "string" },
+    { "key": "pqc_token",  "value": "", "type": "string" },
+    { "key": "rs256_token","value": "", "type": "string" },
+    { "key": "user_id",    "value": "", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "🗂 MiniDS — Directory Server",
+      "item": [
+
+        {
+          "name": "Health & Cluster",
+          "item": [
+            {
+              "name": "Health Check",
+              "request": {
+                "method": "GET",
+                "url": "{{minids_url}}/minids/v1/health",
+                "description": "Returns HTTP 200 when the node is healthy and part of the Raft cluster."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "pm.test('Body contains UP or healthy', () => {",
+                      "    pm.expect(pm.response.text()).to.match(/UP|healthy|ok/i);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Raft Status (node 0)",
+              "request": {
+                "method": "GET",
+                "url": "http://localhost:8301/raft/status",
+                "description": "Returns Raft consensus status: role (LEADER/FOLLOWER), commitIndex, term."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const json = pm.response.json();",
+                      "pm.test('Has status field', () => pm.expect(json).to.have.property('status'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Raft Status (node 1 — leader)",
+              "request": {
+                "method": "GET",
+                "url": "http://localhost:8311/raft/status",
+                "description": "Node 1 is typically the leader. Check role=LEADER here."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Raft Status (node 2)",
+              "request": {
+                "method": "GET",
+                "url": "http://localhost:8321/raft/status"
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Entries — CRUD",
+          "item": [
+            {
+              "name": "Create User",
+              "request": {
+                "method": "POST",
+                "url": "{{minids_url}}/minids/v1/entries",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"dn\": \"uid=ion.popescu,ou=users,dc=minipay,dc=ro\",\n  \"attributes\": {\n    \"objectClass\": [\"inetOrgPerson\", \"minipayUser\"],\n    \"uid\": \"ion.popescu\",\n    \"cn\": \"Ion Popescu\",\n    \"sn\": \"Popescu\",\n    \"givenName\": \"Ion\",\n    \"mail\": \"ion.popescu@minipay.ro\",\n    \"userPassword\": \"{SSHA}hashedpassword\",\n    \"minipayRole\": \"CUSTOMER\",\n    \"accountStatus\": \"ACTIVE\"\n  }\n}"
+                },
+                "description": "Creates a new directory entry. DN must be unique. The `ou=users` branch is pre-created."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Entry created (201)', () => pm.response.to.have.status(201));",
+                      "pm.test('Response has DN', () => {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.dn).to.include('ion.popescu');",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create OAuth2 Client",
+              "request": {
+                "method": "POST",
+                "url": "{{minids_url}}/minids/v1/entries",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"dn\": \"clientId=gateway-svc,ou=clients,dc=minipay,dc=ro\",\n  \"attributes\": {\n    \"objectClass\": [\"oauth2Client\"],\n    \"clientId\": \"gateway-svc\",\n    \"clientSecret\": \"{BCRYPT}$2a$10$examplehash\",\n    \"grantTypes\": [\"client_credentials\"],\n    \"scopes\": [\"payments:read\", \"payments:write\"],\n    \"redirectUris\": [],\n    \"clientStatus\": \"ACTIVE\"\n  }\n}"
+                },
+                "description": "Registers a service-to-service OAuth2 client (gateway-svc) in MiniDS."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Client created (201)', () => pm.response.to.have.status(201));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Entry by DN",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{minids_url}}/minids/v1/entries/uid%3Dion.popescu%2Cou%3Dusers%2Cdc%3Dminipay%2Cdc%3Dro",
+                  "host": ["{{minids_url}}"],
+                  "path": ["minids", "v1", "entries", "uid%3Dion.popescu%2Cou%3Dusers%2Cdc%3Dminipay%2Cdc%3Dro"]
+                },
+                "description": "DN must be URL-encoded."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "pm.test('Correct DN returned', () => {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.dn).to.include('ion.popescu');",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Entry (PUT — full replace)",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "{{minids_url}}/minids/v1/entries/uid%3Dion.popescu%2Cou%3Dusers%2Cdc%3Dminipay%2Cdc%3Dro",
+                  "host": ["{{minids_url}}"],
+                  "path": ["minids", "v1", "entries", "uid%3Dion.popescu%2Cou%3Dusers%2Cdc%3Dminipay%2Cdc%3Dro"]
+                },
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"attributes\": {\n    \"objectClass\": [\"inetOrgPerson\", \"minipayUser\"],\n    \"uid\": \"ion.popescu\",\n    \"cn\": \"Ion Popescu\",\n    \"sn\": \"Popescu\",\n    \"givenName\": \"Ion\",\n    \"mail\": \"ion.popescu@minipay.ro\",\n    \"userPassword\": \"{SSHA}newhashedpassword\",\n    \"minipayRole\": \"CUSTOMER\",\n    \"accountStatus\": \"ACTIVE\",\n    \"phoneNumber\": \"+40721000001\"\n  }\n}"
+                }
+              }
+            },
+            {
+              "name": "Modify Entry (PATCH — partial)",
+              "request": {
+                "method": "PATCH",
+                "url": {
+                  "raw": "{{minids_url}}/minids/v1/entries/uid%3Dion.popescu%2Cou%3Dusers%2Cdc%3Dminipay%2Cdc%3Dro",
+                  "host": ["{{minids_url}}"],
+                  "path": ["minids", "v1", "entries", "uid%3Dion.popescu%2Cou%3Dusers%2Cdc%3Dminipay%2Cdc%3Dro"]
+                },
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"modifications\": [\n    { \"op\": \"REPLACE\", \"attribute\": \"accountStatus\", \"values\": [\"SUSPENDED\"] },\n    { \"op\": \"ADD\",     \"attribute\": \"phoneNumber\",   \"values\": [\"+40721000001\"] }\n  ]\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Entry",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{minids_url}}/minids/v1/entries/uid%3Dion.popescu%2Cou%3Dusers%2Cdc%3Dminipay%2Cdc%3Dro",
+                  "host": ["{{minids_url}}"],
+                  "path": ["minids", "v1", "entries", "uid%3Dion.popescu%2Cou%3Dusers%2Cdc%3Dminipay%2Cdc%3Dro"]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200 or 204', () => {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+
+        {
+          "name": "Search",
+          "item": [
+            {
+              "name": "Search — all users",
+              "request": {
+                "method": "POST",
+                "url": "{{minids_url}}/minids/v1/search",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"baseDn\": \"ou=users,dc=minipay,dc=ro\",\n  \"scope\": \"ONE\",\n  \"filter\": \"(objectClass=inetOrgPerson)\",\n  \"attributes\": [\"uid\", \"cn\", \"mail\", \"accountStatus\"]\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "pm.test('Returns array', () => {",
+                      "    pm.expect(pm.response.json()).to.be.an('array');",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Search — find user by mail",
+              "request": {
+                "method": "POST",
+                "url": "{{minids_url}}/minids/v1/search",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"baseDn\": \"ou=users,dc=minipay,dc=ro\",\n  \"scope\": \"ONE\",\n  \"filter\": \"(mail=ion.popescu@minipay.ro)\",\n  \"attributes\": [\"uid\", \"cn\", \"mail\", \"minipayRole\"]\n}"
+                }
+              }
+            },
+            {
+              "name": "Search — active OAuth2 clients",
+              "request": {
+                "method": "POST",
+                "url": "{{minids_url}}/minids/v1/search",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"baseDn\": \"ou=clients,dc=minipay,dc=ro\",\n  \"scope\": \"ONE\",\n  \"filter\": \"(&(objectClass=oauth2Client)(clientStatus=ACTIVE))\",\n  \"attributes\": [\"clientId\", \"grantTypes\", \"scopes\"]\n}"
+                }
+              }
+            },
+            {
+              "name": "Search — DIT root tree",
+              "request": {
+                "method": "POST",
+                "url": "{{minids_url}}/minids/v1/search",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"baseDn\": \"dc=minipay,dc=ro\",\n  \"scope\": \"ONE\",\n  \"filter\": \"(objectClass=organizationalUnit)\",\n  \"attributes\": [\"ou\"]\n}"
+                },
+                "description": "Lists all top-level OUs: users, tokens, sessions, clients, vault, consents."
+              }
+            }
+          ]
+        }
+
+      ]
+    },
+
+    {
+      "name": "🔐 auth-svc — OAuth2 / OIDC",
+      "item": [
+
+        {
+          "name": "Health & Discovery",
+          "item": [
+            {
+              "name": "Health Check",
+              "request": {
+                "method": "GET",
+                "url": "{{auth_url}}/actuator/health"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status UP', () => {",
+                      "    pm.response.to.have.status(200);",
+                      "    pm.expect(pm.response.json().status).to.eql('UP');",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "OIDC Discovery (Spring standard)",
+              "request": {
+                "method": "GET",
+                "url": "{{auth_url}}/.well-known/oauth-authorization-server"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "pm.test('Has issuer', () => {",
+                      "    pm.expect(pm.response.json()).to.have.property('issuer');",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "OIDC Discovery — PQC Extended",
+              "request": {
+                "method": "GET",
+                "url": "{{auth_url}}/oauth2/server-metadata-pqc"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const json = pm.response.json();",
+                      "pm.test('Advertises RS256', () => pm.expect(json.id_token_signing_alg_values_supported).to.include('RS256'));",
+                      "pm.test('Advertises DILITHIUM3', () => pm.expect(json.id_token_signing_alg_values_supported).to.include('DILITHIUM3'));",
+                      "pm.test('Has PQC block', () => pm.expect(json).to.have.property('pqc_capabilities'));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+
+        {
+          "name": "JWKS",
+          "item": [
+            {
+              "name": "JWKS — Dual Keys (RS256 + Dilithium3)",
+              "request": {
+                "method": "GET",
+                "url": "{{auth_url}}/oauth2/jwks"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const keys = pm.response.json().keys;",
+                      "pm.test('Returns 2 keys', () => pm.expect(keys).to.have.lengthOf(2));",
+                      "const rsaKey = keys.find(k => k.alg === 'RS256');",
+                      "pm.test('RSA key present', () => pm.expect(rsaKey).to.not.be.undefined);",
+                      "const dilKey = keys.find(k => k.alg === 'DILITHIUM3');",
+                      "pm.test('Dilithium3 key present', () => {",
+                      "    pm.expect(dilKey).to.not.be.undefined;",
+                      "    pm.expect(dilKey.kty).to.eql('OKP');",
+                      "    pm.expect(dilKey.crv).to.eql('Dilithium3');",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "JWKS — RS256 only (Spring internal)",
+              "request": {
+                "method": "GET",
+                "url": "{{auth_url}}/oauth2/jwks-rs256"
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Standard OAuth2 (RS256)",
+          "item": [
+            {
+              "name": "Token — Client Credentials",
+              "request": {
+                "method": "POST",
+                "url": "{{auth_url}}/oauth2/token",
+                "header": [
+                  { "key": "Content-Type", "value": "application/x-www-form-urlencoded" },
+                  { "key": "Authorization", "value": "Basic Z2F0ZXdheS1zdmM6c2VjcmV0" }
+                ],
+                "body": {
+                  "mode": "urlencoded",
+                  "urlencoded": [
+                    { "key": "grant_type", "value": "client_credentials" },
+                    { "key": "scope",      "value": "payments:read payments:write" }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "    const json = pm.response.json();",
+                      "    pm.test('Has access_token', () => pm.expect(json).to.have.property('access_token'));",
+                      "    pm.collectionVariables.set('rs256_token', json.access_token);",
+                      "    console.log('RS256 token saved.');",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+
+        {
+          "name": "PQC — CRYSTALS-Dilithium3 (NIST FIPS 204)",
+          "item": [
+            {
+              "name": "Issue PQC Token",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{auth_url}}/auth/token/pqc?subject=test-user&audience=minipay&scope=payments%3Aread&ttl=3600",
+                  "host": ["{{auth_url}}"],
+                  "path": ["auth", "token", "pqc"],
+                  "query": [
+                    { "key": "subject",  "value": "test-user" },
+                    { "key": "audience", "value": "minipay" },
+                    { "key": "scope",    "value": "payments:read" },
+                    { "key": "ttl",      "value": "3600" }
+                  ]
+                },
+                "description": "Issues a JWT signed with CRYSTALS-Dilithium3 (NIST FIPS 204, level 3).\nSignature: 3293 bytes, Public key: 1952 bytes."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const json = pm.response.json();",
+                      "pm.test('Has access_token', () => pm.expect(json).to.have.property('access_token'));",
+                      "pm.test('Algorithm is DILITHIUM3', () => pm.expect(json.algorithm).to.eql('DILITHIUM3'));",
+                      "const sigPart = json.access_token.split('.')[2];",
+                      "pm.test('Signature is Dilithium3 size (>4000 chars)', () => pm.expect(sigPart.length).to.be.above(4000));",
+                      "pm.collectionVariables.set('pqc_token', json.access_token);",
+                      "console.log('PQC token saved. Length:', json.access_token.length);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Verify PQC Token",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{auth_url}}/auth/token/pqc/verify?token={{pqc_token}}",
+                  "host": ["{{auth_url}}"],
+                  "path": ["auth", "token", "pqc", "verify"],
+                  "query": [
+                    { "key": "token", "value": "{{pqc_token}}" }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const json = pm.response.json();",
+                      "pm.test('Signature valid', () => pm.expect(json.valid).to.be.true);",
+                      "pm.test('active=true', () => pm.expect(json.active).to.be.true);",
+                      "pm.test('Algorithm DILITHIUM3', () => pm.expect(json.algorithm).to.eql('DILITHIUM3'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Verify Tampered Token (should fail)",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{auth_url}}/auth/token/pqc/verify?token=eyJhbGciOiJESUxJVEhJVU0zIiwidHlwIjoiSldUIn0.eyJzdWIiOiJoYWNrZXIifQ.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                  "host": ["{{auth_url}}"],
+                  "path": ["auth", "token", "pqc", "verify"],
+                  "query": [
+                    { "key": "token", "value": "eyJhbGciOiJESUxJVEhJVU0zIiwidHlwIjoiSldUIn0.eyJzdWIiOiJoYWNrZXIifQ.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "pm.test('Tampered token REJECTED', () => pm.expect(pm.response.json().valid).to.be.false);"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+
+      ]
+    },
+
+    {
+      "name": "👤 user-svc — User Management",
+      "description": "REST API for user registration, profile management, and GDPR erasure.\n\nStorage: MiniDS (ou=users,dc=minipay,dc=ro)\nPasswords: Argon2id (OWASP 2023 params: memory=19MB, iter=2)\n\nFlow tipic:\n1. Register User (public, no auth)\n2. Issue PQC Token din auth-svc (pentru protected endpoints)\n3. Get / Update / Delete",
+      "item": [
+
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{user_url}}/actuator/health",
+            "description": "Verifica ca user-svc e UP si conectat."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status UP', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql('UP');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Register User (public)",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ion.popescu@minipay.ro\",\n  \"password\": \"Parola@2026!\",\n  \"firstName\": \"Ion\",\n  \"lastName\": \"Popescu\",\n  \"role\": \"USER\"\n}"
+            },
+            "description": "Inregistreaza un utilizator nou. Endpoint PUBLIC — nu necesita JWT.\n\nParola e hashed cu Argon2id inainte de stocare in MiniDS.\nRoluri disponibile: USER, MERCHANT, ADMIN."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('Has userId', () => pm.expect(json).to.have.property('userId'));",
+                  "pm.test('Email matches', () => pm.expect(json.email).to.eql('ion.popescu@minipay.ro'));",
+                  "pm.test('Status is ACTIVE', () => pm.expect(json.status).to.eql('ACTIVE'));",
+                  "pm.test('Role is USER', () => pm.expect(json.role).to.eql('USER'));",
+                  "pm.test('No password in response', () => pm.expect(json).to.not.have.property('password'));",
+                  "pm.test('No password hash in response', () => pm.expect(json).to.not.have.property('passwordHash'));",
+                  "",
+                  "// Salveaza userId pentru request-urile urmatoare",
+                  "pm.collectionVariables.set('user_id', json.userId);",
+                  "console.log('User created. userId =', json.userId);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Register Merchant (public)",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"merchant@shop.ro\",\n  \"password\": \"MerchantPass@2026\",\n  \"firstName\": \"Magazin\",\n  \"lastName\": \"Online SRL\",\n  \"role\": \"MERCHANT\"\n}"
+            },
+            "description": "Inregistreaza un merchant. Acelasi endpoint, rol diferit."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Role is MERCHANT', () => pm.expect(pm.response.json().role).to.eql('MERCHANT'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Register — Email duplicat (trebuie sa dea 400)",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ion.popescu@minipay.ro\",\n  \"password\": \"AltaParola@2026\",\n  \"firstName\": \"Ion\",\n  \"lastName\": \"Popescu2\",\n  \"role\": \"USER\"\n}"
+            },
+            "description": "Incearca sa inregistreze acelasi email de doua ori. Trebuie sa returneze 400 Bad Request."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bad Request 400 (email duplicat)', () => pm.response.to.have.status(400));",
+                  "pm.test('Error message prezent', () => {",
+                  "    pm.expect(pm.response.json()).to.have.property('error');",
+                  "    pm.expect(pm.response.json().error).to.include('already registered');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Register — Parola scurta (validare)",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@minipay.ro\",\n  \"password\": \"scurt\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\",\n  \"role\": \"USER\"\n}"
+            },
+            "description": "Parola sub 8 caractere. Spring Validation trebuie sa returneze 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Validation error 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Get User by ID (JWT required)",
+          "request": {
+            "method": "GET",
+            "url": "{{user_url}}/users/{{user_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{pqc_token}}", "description": "Ruleaza 'Issue PQC Token' mai intai" }
+            ],
+            "description": "Returneaza profilul userului. Necesita JWT valid in header.\n\nuser_id e salvat automat de 'Register User'.\npqc_token e salvat automat de 'Issue PQC Token'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('userId matches', () => {",
+                  "    pm.expect(json.userId).to.eql(pm.collectionVariables.get('user_id'));",
+                  "});",
+                  "pm.test('Email prezent', () => pm.expect(json).to.have.property('email'));",
+                  "pm.test('Status ACTIVE', () => pm.expect(json.status).to.eql('ACTIVE'));",
+                  "pm.test('Fara passwordHash', () => pm.expect(json).to.not.have.property('passwordHash'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Find User by Email (JWT required)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{user_url}}/users?email=ion.popescu@minipay.ro",
+              "host": ["{{user_url}}"],
+              "path": ["users"],
+              "query": [
+                { "key": "email", "value": "ion.popescu@minipay.ro" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{pqc_token}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Email corect', () => {",
+                  "    pm.expect(pm.response.json().email).to.eql('ion.popescu@minipay.ro');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Update User Profile (JWT required)",
+          "request": {
+            "method": "PUT",
+            "url": "{{user_url}}/users/{{user_id}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{pqc_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ioan\",\n  \"lastName\": \"Popescu-Updated\"\n}"
+            },
+            "description": "Actualizeaza firstName si/sau lastName. Campurile null sunt ignorate (partial update)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('firstName actualizat', () => pm.expect(json.firstName).to.eql('Ioan'));",
+                  "pm.test('lastName actualizat', () => pm.expect(json.lastName).to.eql('Popescu-Updated'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Change Password (JWT required)",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users/{{user_id}}/change-password",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{pqc_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Parola@2026!\",\n  \"newPassword\": \"NovaParola@2026!\"\n}"
+            },
+            "description": "Schimba parola. Verifica parola curenta cu Argon2id inainte de actualizare.\nNou hash Argon2id este salvat in MiniDS."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Mesaj succes', () => {",
+                  "    pm.expect(pm.response.json().message).to.include('updated');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Change Password — parola gresita (trebuie 400)",
+          "request": {
+            "method": "POST",
+            "url": "{{user_url}}/users/{{user_id}}/change-password",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{pqc_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"parolaGresita\",\n  \"newPassword\": \"NovaParola@2026!\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bad Request 400 (parola gresita)', () => pm.response.to.have.status(400));",
+                  "pm.test('Error mesaj', () => {",
+                  "    pm.expect(pm.response.json().error).to.include('incorrect');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Get User Inexistent (trebuie 404)",
+          "request": {
+            "method": "GET",
+            "url": "{{user_url}}/users/00000000-0000-0000-0000-000000000000",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{pqc_token}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Not Found 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error mesaj', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Delete User — GDPR Erasure (JWT required)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{user_url}}/users/{{user_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{pqc_token}}" }
+            ],
+            "description": "Soft-delete cu GDPR Art.17 (dreptul la stergere).\n\nNu sterge fizic inregistrarea — seteaza:\n- status = DELETED\n- firstName = [deleted]\n- lastName = [deleted]\n- email = deleted-{id}@minipay.ro\n- passwordHash = empty\n\nAstfel istoricul tranzactiilor ramane consistent."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('No Content 204', () => pm.response.to.have.status(204));",
+                  "console.log('User soft-deleted (GDPR erasure). userId =', pm.collectionVariables.get('user_id'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Get User dupa Delete (status DELETED)",
+          "request": {
+            "method": "GET",
+            "url": "{{user_url}}/users/{{user_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{pqc_token}}" }
+            ],
+            "description": "Dupa stergere, userul exista in MiniDS dar cu status=DELETED si datele PII sterse."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 (soft deleted)', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status DELETED', () => pm.expect(json.status).to.eql('DELETED'));",
+                  "pm.test('PII sters - firstName', () => pm.expect(json.firstName).to.eql('[deleted]'));",
+                  "pm.test('PII sters - lastName', () => pm.expect(json.lastName).to.eql('[deleted]'));"
+                ]
+              }
+            }
+          ]
+        }
+
+      ]
+    }
+
+  ]
+}

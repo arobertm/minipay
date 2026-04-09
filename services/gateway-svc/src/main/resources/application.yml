@@ -1,0 +1,47 @@
+server:
+  port: ${SERVER_PORT:8084}
+
+spring:
+  application:
+    name: gateway-svc
+
+  threads:
+    virtual:
+      enabled: true
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_JWK_URI:http://auth-svc:8081/oauth2/jwks-rs256}
+          issuer-uri: ${AUTH_ISSUER_URI:http://auth-svc:8081}
+
+# Downstream service URLs
+services:
+  vault-url:       ${VAULT_URL:http://vault-svc:8085}
+  fraud-url:       ${FRAUD_URL:http://fraud-svc:8090}
+  network-url:     ${NETWORK_URL:http://network-svc:8086}
+  connect-timeout: 5000
+  read-timeout:    10000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    "[ro.minipay.gateway]": DEBUG
+    "[org.springframework.security]": INFO

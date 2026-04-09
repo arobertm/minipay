@@ -29,7 +29,22 @@
       "Bash(curl -s -X POST http://localhost:8301/minids/v1/entries -H 'Content-Type: application/json' -d '{\"\"\"\"dn\"\"\"\":\"\"\"\"uid=testuser,ou=users,dc=minipay,dc=ro\"\"\"\",\"\"\"\"objectClass\"\"\"\":\"\"\"\"miniPayUser\"\"\"\",\"\"\"\"attributes\"\"\"\":{\"\"\"\"uid\"\"\"\":\"\"\"\"testuser\"\"\"\",\"\"\"\"mail\"\"\"\":\"\"\"\"testuser@minipay.ro\"\"\"\",\"\"\"\"cn\"\"\"\":\"\"\"\"Test User\"\"\"\"}}')",
       "Bash(powershell.exe -Command 'Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 8301,8311,8321 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess -Force -ErrorAction SilentlyContinue' 2)",
       "Bash(/dev/null sleep:*)",
-      "Bash(powershell.exe -Command \"Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 8301,8311,8321 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess -Force -ErrorAction SilentlyContinue\")"
+      "Bash(powershell.exe -Command \"Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 8301,8311,8321 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess -Force -ErrorAction SilentlyContinue\")",
+      "Bash(jar tf:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(curl -s http://localhost:8081/actuator/health)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''Health:'''', d[''''status'''']\\)\")",
+      "Bash(curl -s http://localhost:8081/oauth2/jwks)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s -X POST \"http://localhost:8081/auth/token/pqc?subject=test-user&audience=minipay&scope=payments:read&ttl=3600\")",
+      "Bash(curl -sv -X POST \"http://localhost:8081/auth/token/pqc?subject=test-user&audience=minipay&scope=payments%3Aread&ttl=3600\")",
+      "Bash(curl -s -X POST \"http://localhost:8081/auth/token/pqc?subject=test-user&audience=minipay&scope=payments%3Aread&ttl=3600\")",
+      "Bash(curl -s http://localhost:8081/oauth2/server-metadata-pqc)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''Algorithms:'''', d[''''id_token_signing_alg_values_supported'''']\\); print\\(''''PQC:'''', d[''''pqc_capabilities'''']\\)\")",
+      "Bash(python3 -c \":*)",
+      "Bash(mvn clean:*)",
+      "Bash(docker build:*)"
     ]
   }
 }

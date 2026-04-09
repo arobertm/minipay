@@ -8,10 +8,12 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import ro.minipay.auth.repository.MiniDSRegisteredClientRepository;
 
 /**
  * Spring Authorization Server security configuration.
@@ -30,6 +32,7 @@ public class AuthSecurityConfig {
 
     private final JwtEncoder jwtEncoder;
     private final JwtDecoder jwtDecoder;
+    private final MiniDSRegisteredClientRepository registeredClientRepository;
 
     /**
      * Authorization server security filter chain.
@@ -59,8 +62,18 @@ public class AuthSecurityConfig {
         http
             .authorizeHttpRequests(authorize ->
                 authorize
-                    .requestMatchers("/actuator/**", "/health", "/oauth2/jwks", "/.well-known/**").permitAll()
+                    .requestMatchers(
+                        "/actuator/**", "/health",
+                        "/oauth2/jwks", "/oauth2/jwks-rs256", "/.well-known/**",
+                        "/auth/token/pqc", "/auth/token/pqc/verify",
+                        "/oauth2/server-metadata-pqc"
+                    ).permitAll()
                     .anyRequest().authenticated()
+            )
+            .csrf(csrf -> csrf
+                .ignoringRequestMatchers(
+                    "/auth/token/pqc", "/auth/token/pqc/verify"
+                )
             )
             .formLogin(Customizer.withDefaults());
 
@@ -76,7 +89,7 @@ public class AuthSecurityConfig {
             .issuer("http://auth-svc:8081")
             .authorizationEndpoint("/oauth2/authorize")
             .tokenEndpoint("/oauth2/token")
-            .jwkSetEndpoint("/oauth2/jwks")
+            .jwkSetEndpoint("/oauth2/jwks-rs256")
             .tokenRevocationEndpoint("/oauth2/revoke")
             .tokenIntrospectionEndpoint("/oauth2/introspect")
             .oidcUserInfoEndpoint("/oauth2/userinfo")

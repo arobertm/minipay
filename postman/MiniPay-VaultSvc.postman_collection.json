@@ -1,0 +1,331 @@
+{
+  "info": {
+    "name": "MiniPay — vault-svc",
+    "description": "Colectie dedicata pentru vault-svc (port 8085).\n\nEMV Tokenization: PAN → DPAN (AES-256-GCM + Luhn)\nStorage: MiniDS (ou=vault,dc=minipay,dc=ro)\nToate endpoint-urile necesita JWT (Bearer token din auth-svc)\n\nFlux recomandat:\n1. Health Check\n2. Tokenize PAN → salveaza dpan automat\n3. Tokenize acelasi PAN → DPAN diferit (single-use)\n4. Detokenize → verifica PAN original\n5. Delete Token → GDPR erasure\n6. Detokenize dupa delete → 404",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "vault_url",  "value": "http://localhost:8085", "type": "string" },
+    { "key": "auth_url",   "value": "http://localhost:8081", "type": "string" },
+    { "key": "jwt_token",  "value": "", "type": "string" },
+    { "key": "dpan",       "value": "", "type": "string" },
+    { "key": "dpan2",      "value": "", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{vault_url}}/actuator/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status UP', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql('UP');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Tokenizare",
+      "item": [
+        {
+          "name": "Tokenize — Visa 4111",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/tokenize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"1228\",\n  \"requestId\": \"req-visa-001\"\n}"
+            },
+            "description": "Tokenizeaza un PAN Visa (4111 1111 1111 1111).\nDPAN-ul generat preserva BIN-ul (411111) si trece Luhn check.\nPAN-ul original e criptat AES-256-GCM si stocat in MiniDS."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Are dpan', () => pm.expect(json).to.have.property('dpan'));",
+                  "pm.test('DPAN are 16 cifre', () => pm.expect(json.dpan).to.match(/^\\d{16}$/));",
+                  "pm.test('BIN preserved (411111)', () => pm.expect(json.dpan.substring(0, 6)).to.eql('411111'));",
+                  "pm.test('BIN corect in raspuns', () => pm.expect(json.bin).to.eql('411111'));",
+                  "pm.test('Last4 = ultimele 4 din DPAN', () => pm.expect(json.dpan.slice(-4)).to.eql(json.last4));",
+                  "pm.test('DPAN != PAN original', () => pm.expect(json.dpan).to.not.eql('4111111111111111'));",
+                  "pm.collectionVariables.set('dpan', json.dpan);",
+                  "console.log('DPAN salvat:', json.dpan);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Tokenize — Mastercard 5500",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/tokenize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"5500005555555559\",\n  \"expiryDate\": \"0927\",\n  \"requestId\": \"req-mc-001\"\n}"
+            },
+            "description": "Tokenizeaza un PAN Mastercard (BIN: 550000)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('BIN Mastercard preserved (550000)', () => pm.expect(json.dpan.substring(0, 6)).to.eql('550000'));",
+                  "pm.collectionVariables.set('dpan2', json.dpan);",
+                  "console.log('DPAN Mastercard:', json.dpan);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Tokenize acelasi PAN → DPAN diferit",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/tokenize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"1228\",\n  \"requestId\": \"req-visa-002\"\n}"
+            },
+            "description": "Acelasi PAN ca primul request.\nDPAN-ul trebuie sa fie DIFERIT (non-idempotent by design — single-use tokens)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('DPAN nou este diferit', () => {",
+                  "    pm.expect(json.dpan).to.not.eql(pm.collectionVariables.get('dpan'));",
+                  "});",
+                  "pm.test('BIN tot preserved', () => pm.expect(json.dpan.substring(0, 6)).to.eql('411111'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Tokenize — PAN invalid (litere) → 400",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/tokenize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111-ABCD-1111-1111\",\n  \"expiryDate\": \"1228\"\n}"
+            },
+            "description": "PAN cu litere — @Pattern validation → 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bad Request 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Tokenize — PAN prea scurt → 400",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/tokenize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"123456\",\n  \"expiryDate\": \"1228\"\n}"
+            },
+            "description": "PAN sub 13 cifre — @Pattern validation → 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bad Request 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Tokenize — fara JWT → 401",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/tokenize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"1228\"\n}"
+            },
+            "description": "Request fara Authorization header → 401 Unauthorized."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Unauthorized 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Detokenizare",
+      "item": [
+        {
+          "name": "Detokenize — recupera PAN original",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/detokenize/{{dpan}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Recupereaza PAN-ul original din DPAN.\nDPAN salvat automat de 'Tokenize — Visa 4111'.\nAccest restrictionat: doar issuer-svc si network-svc ar trebui sa apeleze."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('PAN original recuperat', () => pm.expect(json.pan).to.eql('4111111111111111'));",
+                  "pm.test('expiryDate recuperat', () => pm.expect(json.expiryDate).to.eql('1228'));",
+                  "pm.test('DPAN prezent', () => pm.expect(json.dpan).to.eql(pm.collectionVariables.get('dpan')));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Detokenize — DPAN inexistent → 404",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/detokenize/4111000000000099",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "DPAN care nu exista in vault → 404."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Not Found 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Mesaj error', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Stergere (GDPR)",
+      "item": [
+        {
+          "name": "Delete Token",
+          "request": {
+            "method": "DELETE",
+            "url": "{{vault_url}}/vault/tokens/{{dpan}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Sterge tokenul din vault (GDPR Art.17 / card deactivat).\nPAN-ul criptat este sters din MiniDS — nu mai poate fi recuperat."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('No Content 204', () => pm.response.to.have.status(204));",
+                  "console.log('Token sters:', pm.collectionVariables.get('dpan'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Detokenize dupa Delete → 404",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/detokenize/{{dpan}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Dupa stergere, DPAN-ul nu mai exista in vault → 404.\nConfirma ca stergerea GDPR a functionat."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Not Found 404 dupa delete', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+
+  ]
+}

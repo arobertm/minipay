@@ -1,0 +1,421 @@
+{
+  "info": {
+    "name": "MiniPay — gateway-svc",
+    "description": "Colectie dedicata pentru gateway-svc (port 8084).\n\nOrchestration: tokenize PAN → fraud score → network authorize\nToate endpoint-urile necesita JWT Bearer\n\nFlux recomandat:\n1. Authorize — Visa APPROVED (scor frauda mic)\n2. Capture tranzactia autorizata\n3. Authorize — Visa DECLINED (insufficient funds)\n4. Authorize — card BLOCAT de fraud engine (scor mare)\n5. Refund tranzactia capturata\n6. Get status dupa fiecare operatie",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gateway_url", "value": "http://localhost:8084", "type": "string" },
+    { "key": "auth_url",    "value": "http://localhost:8081", "type": "string" },
+    { "key": "jwt_token",   "value": "", "type": "string" },
+    { "key": "txn_approved","value": "", "type": "string" },
+    { "key": "txn_captured","value": "", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{gateway_url}}/actuator/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status UP', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql('UP');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Authorize",
+      "item": [
+        {
+          "name": "Authorize — Visa APPROVED",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/authorize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"1228\",\n  \"cvv\": \"123\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"orderId\": \"order-visa-001\",\n  \"description\": \"Comanda #1001\"\n}"
+            },
+            "description": "Plata normala cu card Visa de test.\namount = 10000 = 100.00 RON (in bani).\nFlux: PAN → DPAN (vault) → fraud score mic → network APPROVED (00)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status AUTHORIZED', () => pm.expect(json.status).to.eql('AUTHORIZED'));",
+                  "pm.test('ISO code 00', () => pm.expect(json.isoResponseCode).to.eql('00'));",
+                  "pm.test('Are txnId', () => pm.expect(json).to.have.property('txnId'));",
+                  "pm.test('Are dpan (nu PAN)', () => {",
+                  "    pm.expect(json).to.have.property('dpan');",
+                  "    pm.expect(json.dpan).to.not.eql('4111111111111111');",
+                  "});",
+                  "pm.test('BIN preserved in DPAN', () => pm.expect(json.dpan.substring(0,6)).to.eql('411111'));",
+                  "pm.test('Are authCode', () => pm.expect(json).to.have.property('authCode'));",
+                  "pm.test('fraudScore prezent', () => pm.expect(json).to.have.property('fraudScore'));",
+                  "pm.collectionVariables.set('txn_approved', json.txnId);",
+                  "console.log('txnId salvat:', json.txnId, '| DPAN:', json.dpan, '| fraud:', json.fraudScore);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — Mastercard APPROVED",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/authorize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"5500005555555559\",\n  \"expiryDate\": \"0927\",\n  \"cvv\": \"456\",\n  \"amount\": 25000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"orderId\": \"order-mc-001\",\n  \"description\": \"Abonament Premium\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status AUTHORIZED', () => pm.expect(json.status).to.eql('AUTHORIZED'));",
+                  "pm.test('BIN Mastercard in DPAN', () => pm.expect(json.dpan.substring(0,6)).to.eql('550000'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — DECLINED (insuf. funds)",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/authorize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4000000000009995\",\n  \"expiryDate\": \"1228\",\n  \"cvv\": \"123\",\n  \"amount\": 99999999,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"orderId\": \"order-declined-001\"\n}"
+            },
+            "description": "Card cu fonduri insuficiente.\nNetwork-svc returneaza ISO 8583 code 51 → DECLINED."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK (declined = issuer decision, not server error)', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status DECLINED', () => pm.expect(json.status).to.eql('DECLINED'));",
+                  "pm.test('ISO code 51', () => pm.expect(json.isoResponseCode).to.eql('51'));",
+                  "pm.test('declineReason INSUFFICIENT_FUNDS', () => {",
+                  "    pm.expect(json.declineReason).to.eql('INSUFFICIENT_FUNDS');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — BLOCKED de fraud engine",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/authorize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"1228\",\n  \"cvv\": \"999\",\n  \"amount\": 999999999,\n  \"currency\": \"RON\",\n  \"merchantId\": \"suspicious-merchant-99\",\n  \"orderId\": \"order-fraud-test\",\n  \"description\": \"Test fraud block\"\n}"
+            },
+            "description": "Suma foarte mare + merchant suspect → fraud score >= 0.8 → BLOCKED.\nNu ajunge niciodata la network-svc.\nRaspunsul include fraudScore + fraudReasons (SHAP)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created (blocked = new decision)', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status BLOCKED', () => pm.expect(json.status).to.eql('BLOCKED'));",
+                  "pm.test('declineReason FRAUD_BLOCKED', () => {",
+                  "    pm.expect(json.declineReason).to.eql('FRAUD_BLOCKED');",
+                  "});",
+                  "pm.test('fraudScore >= 0.8', () => pm.expect(json.fraudScore).to.be.at.least(0.8));",
+                  "console.log('Fraud reasons:', json.fraudReasons);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — PAN invalid → 400",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/authorize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"ABCD-EFGH-IJKL-MNOP\",\n  \"expiryDate\": \"1228\",\n  \"cvv\": \"123\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"orderId\": \"order-invalid\"\n}"
+            },
+            "description": "@Pattern validation pe PAN → 400 Bad Request."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bad Request 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — fara JWT → 401",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"1228\",\n  \"cvv\": \"123\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"orderId\": \"order-noauth\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Unauthorized 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Capture",
+      "item": [
+        {
+          "name": "Capture tranzactie autorizata",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/{{txn_approved}}/capture",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000,\n  \"currency\": \"RON\"\n}"
+            },
+            "description": "Captureaza suma autorizata anterior.\ntxn_approved salvat automat de 'Authorize — Visa APPROVED'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status CAPTURED', () => pm.expect(json.status).to.eql('CAPTURED'));",
+                  "pm.test('txnId match', () => pm.expect(json.txnId).to.eql(pm.collectionVariables.get('txn_approved')));",
+                  "pm.collectionVariables.set('txn_captured', json.txnId);",
+                  "console.log('Capturat txnId:', json.txnId);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Capture tranzactie deja capturata → 409",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/{{txn_captured}}/capture",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000,\n  \"currency\": \"RON\"\n}"
+            },
+            "description": "Nu poti captura o tranzactie deja capturata → 409 Conflict."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Conflict 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Mesaj status invalid', () => {",
+                  "    pm.expect(pm.response.json().error).to.include('CAPTURED');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Refund",
+      "item": [
+        {
+          "name": "Refund tranzactie capturata",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/{{txn_captured}}/refund",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 5000,\n  \"reason\": \"Retur partial — produs deteriorat\"\n}"
+            },
+            "description": "Retur partial (50% din suma capturata).\namount = 5000 = 50.00 RON."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status REFUNDED', () => pm.expect(json.status).to.eql('REFUNDED'));",
+                  "pm.test('Amount refundat', () => pm.expect(json.amount).to.eql(5000));",
+                  "console.log('Refund aplicat pentru txnId:', json.txnId);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Refund tranzactie neautorizata → 409",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/{{txn_approved}}/refund",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000,\n  \"reason\": \"Test\"\n}"
+            },
+            "description": "Nu poti refunda o tranzactie AUTHORIZED (trebuie sa fie CAPTURED) → 409."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Conflict 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Status",
+      "item": [
+        {
+          "name": "Get Payment Status",
+          "request": {
+            "method": "GET",
+            "url": "{{gateway_url}}/v1/payments/{{txn_captured}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "description": "Verifica statusul final al tranzactiei dupa intregul flux."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Are txnId', () => pm.expect(json).to.have.property('txnId'));",
+                  "pm.test('Are status', () => pm.expect(json).to.have.property('status'));",
+                  "pm.test('Are amount', () => pm.expect(json).to.have.property('amount'));",
+                  "pm.test('Are fraudScore', () => pm.expect(json).to.have.property('fraudScore'));",
+                  "console.log('Final status:', json.status, '| fraudScore:', json.fraudScore);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Get Payment inexistent → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{gateway_url}}/v1/payments/00000000-0000-0000-0000-000000000000",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Not Found 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Mesaj error', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+
+  ]
+}

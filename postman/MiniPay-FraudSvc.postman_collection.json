@@ -1,0 +1,318 @@
+{
+  "info": {
+    "name": "MiniPay — fraud-svc",
+    "description": "Colectie pentru fraud-svc (port 8090) — detectie frauda cu XGBoost + SHAP.\n\nModel: XGBoost binary classifier (antrenat pe date sintetice la startup)\nExplicabilitate: SHAP TreeExplainer — top features per decizie\nCompliant GDPR Art.22: fiecare BLOCK/CHALLENGE vine cu explicatie human-readable\n\nDecizii:\n  score < 0.5  → ALLOW\n  score 0.5-0.8 → CHALLENGE (3DS2 recomandat)\n  score >= 0.8  → BLOCK\n\nNote: la primul startup modelul se antreneaza (~30 secunde).\nVerifica /health pana apare status=UP inainte de a testa.\n\nFlux recomandat:\n1. Health Check (asteapta UP)\n2. Score tranzactie normala → ALLOW\n3. Score tranzactie de noapte + valuta straina → CHALLENGE/BLOCK\n4. Score suma foarte mare + IP extern → BLOCK\n5. Score card testing (suma mica + noapte) → BLOCK\n6. Verifica shap_details din raspuns",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "fraud_url", "value": "http://localhost:8090", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{fraud_url}}/health",
+            "description": "Verifica ca fraud-svc ruleaza si modelul e incarcat.\nstatus=LOADING daca modelul inca se antreneaza (prima pornire ~30s).\nAsteapta status=UP inainte de a testa /fraud/score."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Model UP', () => pm.expect(json.status).to.eql('UP'));",
+                  "pm.test('Model XGBoost', () => pm.expect(json.model).to.include('XGBoost'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Scenarii de scoring",
+      "item": [
+
+        {
+          "name": "Score — tranzactie normala → ALLOW",
+          "request": {
+            "method": "POST",
+            "url": "{{fraud_url}}/fraud/score",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"4111110000001234\",\n  \"amount\": 15000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-supermarket-001\",\n  \"ipAddress\": \"192.168.1.100\"\n}"
+            },
+            "description": "Tranzactie tipica:\n- Suma 150 RON (normala)\n- Moneda RON (locala)\n- IP privat (192.168.x.x)\n- Ora normala de zi\n\nAsteptat: decision=ALLOW, score < 0.5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Score intre 0 si 1', () => {",
+                  "    pm.expect(json.score).to.be.above(0).and.below(1);",
+                  "});",
+                  "pm.test('Decision ALLOW', () => pm.expect(json.decision).to.eql('ALLOW'));",
+                  "pm.test('shap_details prezent', () => pm.expect(json.shap_details).to.be.an('array'));",
+                  "console.log('Score:', json.score, '| Decision:', json.decision);",
+                  "console.log('Top reason:', json.reasons[0] || 'nicio cauza');"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Score — noapte + EUR + suma medie → CHALLENGE",
+          "request": {
+            "method": "POST",
+            "url": "{{fraud_url}}/fraud/score",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"4111110000005678\",\n  \"amount\": 85000,\n  \"currency\": \"EUR\",\n  \"merchantId\": \"merchant-online-foreign-007\",\n  \"ipAddress\": \"203.0.113.50\"\n}"
+            },
+            "description": "Tranzactie cu factori de risc:\n- Suma 850 EUR (medie-mare)\n- Moneda straina (EUR)\n- IP extern\n\nAsteptat: decision=CHALLENGE sau BLOCK, score >= 0.5\nSHAP reasons vor include: currency_risk, ip_external"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Score ridicat (>= 0.4)', () => pm.expect(json.score).to.be.above(0.4));",
+                  "pm.test('Decision nu e ALLOW simplu', () => {",
+                  "    // poate fi CHALLENGE sau BLOCK",
+                  "    pm.expect(['ALLOW','CHALLENGE','BLOCK']).to.include(json.decision);",
+                  "});",
+                  "pm.test('Are reasons SHAP', () => pm.expect(json.shap_details.length).to.be.above(0));",
+                  "console.log('Score:', json.score, '| Decision:', json.decision);",
+                  "console.log('SHAP reasons:', json.reasons);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Score — suma foarte mare + IP extern → BLOCK",
+          "request": {
+            "method": "POST",
+            "url": "{{fraud_url}}/fraud/score",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"4111110000009999\",\n  \"amount\": 1500000,\n  \"currency\": \"USD\",\n  \"merchantId\": \"merchant-unknown-xyz\",\n  \"ipAddress\": \"198.51.100.77\"\n}"
+            },
+            "description": "Tranzactie cu risc maxim:\n- Suma 15000 USD (foarte mare)\n- Moneda straina (USD)\n- IP extern\n\nAsteptat: decision=BLOCK, score >= 0.8\nSHAP: amount_large, currency_risk, ip_external ca top reasons"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Score mare (> 0.6)', () => pm.expect(json.score).to.be.above(0.6));",
+                  "pm.test('Are SHAP reasons', () => pm.expect(json.reasons.length).to.be.above(0));",
+                  "console.log('Score:', json.score, '| Decision:', json.decision);",
+                  "console.log('Reasons (GDPR Art.22):', JSON.stringify(json.reasons, null, 2));",
+                  "console.log('Top SHAP feature:', json.shap_details[0]?.feature, '=', json.shap_details[0]?.shap_value);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Score — card testing (suma mica + noapte + IP extern)",
+          "request": {
+            "method": "POST",
+            "url": "{{fraud_url}}/fraud/score",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"4111110000007777\",\n  \"amount\": 100,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-gas-station-003\",\n  \"ipAddress\": \"185.220.101.5\"\n}"
+            },
+            "description": "Pattern 'card testing':\n- Suma 1 RON (minima — verifica daca cardul e valid)\n- IP extern (posibil Tor/VPN)\n- Comerciant benign (benzinarie)\n\nIn realitate frauda face o tranzactie minima sa vada daca cardul e activ.\nAsteptat: score ridicat datorita ip_external + suma atipica"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "console.log('Card testing score:', json.score, '| Decision:', json.decision);",
+                  "console.log('SHAP breakdown:', JSON.stringify(json.shap_details.slice(0,3), null, 2));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Score — weekend + valuta exotica → risc mediu",
+          "request": {
+            "method": "POST",
+            "url": "{{fraud_url}}/fraud/score",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"5500000000003333\",\n  \"amount\": 50000,\n  \"currency\": \"JPY\",\n  \"merchantId\": \"merchant-travel-tokyo-001\",\n  \"ipAddress\": \"103.28.54.100\"\n}"
+            },
+            "description": "Tranzactie in valuta exotica (JPY) + IP extern.\ncurrency_risk = 0.8 pentru valute non-EUR/USD.\nAsteptat: score mediu-ridicat, reasons include currency_risk"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "console.log('Exotic currency score:', json.score, '| Decision:', json.decision);",
+                  "console.log('Reasons:', json.reasons);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Score — tranzactie locala standard",
+          "request": {
+            "method": "POST",
+            "url": "{{fraud_url}}/fraud/score",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"4111110000002222\",\n  \"amount\": 9900,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-kaufland-bucharest\",\n  \"ipAddress\": \"10.0.0.1\"\n}"
+            },
+            "description": "Tranzactie complet normala:\n- 99 RON la supermarket\n- Moneda RON\n- IP local (10.x.x.x)\n\nAsteptat: ALLOW cu score mic, reasons goale sau minime"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Decision ALLOW', () => pm.expect(json.decision).to.eql('ALLOW'));",
+                  "console.log('Local transaction score:', json.score);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Score — model nu e ready → 503",
+          "request": {
+            "method": "POST",
+            "url": "{{fraud_url}}/fraud/score",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "description": "Request invalid — body gol, lipsesc campuri obligatorii.\nAsteptat: 422 Unprocessable Entity (Pydantic validation)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Validation error 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+
+      ]
+    },
+
+    {
+      "name": "SHAP Explainability Demo",
+      "item": [
+        {
+          "name": "SHAP Demo — BLOCK cu explicatii complete",
+          "request": {
+            "method": "POST",
+            "url": "{{fraud_url}}/fraud/score",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"4111110000001111\",\n  \"amount\": 750000,\n  \"currency\": \"USD\",\n  \"merchantId\": \"merchant-casino-online-888\",\n  \"ipAddress\": \"45.33.32.156\"\n}"
+            },
+            "description": "Tranzactie cu toti factorii de risc activi:\n- Suma 7500 USD (> 2000 RON threshold)\n- Moneda USD straina\n- IP extern\n\nVerifica shap_details din raspuns pentru analiza completa:\n- shap_value > 0 = factor care CRESTE riscul (fraud)\n- shap_value < 0 = factor care SCADE riscul (legit)\n\nAcesta este mecanismul de GDPR Art.22 compliance:\nfiecare decizie are explicatie auditabila."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "",
+                  "// Verifica structura SHAP",
+                  "pm.test('shap_details are 8 features', () => {",
+                  "    pm.expect(json.shap_details).to.have.lengthOf(8);",
+                  "});",
+                  "pm.test('Fiecare SHAP detail are feature+shap_value+description', () => {",
+                  "    json.shap_details.forEach(d => {",
+                  "        pm.expect(d).to.have.property('feature');",
+                  "        pm.expect(d).to.have.property('shap_value');",
+                  "        pm.expect(d).to.have.property('description');",
+                  "    });",
+                  "});",
+                  "",
+                  "console.log('=== FRAUD ANALYSIS REPORT ===');",
+                  "console.log('Score:', json.score, '| Decision:', json.decision);",
+                  "console.log('');",
+                  "console.log('Top reasons (GDPR Art.22):');",
+                  "json.reasons.forEach((r, i) => console.log('  ' + (i+1) + '. ' + r));",
+                  "console.log('');",
+                  "console.log('SHAP breakdown (sorted by impact):');",
+                  "json.shap_details.forEach(d => {",
+                  "    const arrow = d.shap_value > 0 ? '↑ fraud' : '↓ legit';",
+                  "    console.log('  ' + d.feature.padEnd(18) + arrow + ' (' + d.shap_value + ')');",
+                  "    console.log('    → ' + d.description);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+
+  ]
+}

@@ -8,9 +8,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * All vault endpoints require a valid JWT.
- * /vault/detokenize/** is additionally protected at service level
- * (only gateway-svc and issuer-svc should call it — enforced via network policy in prod).
+ * Vault-svc is deployed on the internal Docker/Kubernetes network only.
+ * Access control is enforced at the network layer (not exposed externally).
+ * In production, replace with mTLS or service-account JWT verification.
  */
 @Configuration
 @EnableWebSecurity
@@ -22,11 +22,7 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/**").permitAll()
-                .anyRequest().authenticated()
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> {})
+                .anyRequest().permitAll()
             );
 
         return http.build();

@@ -7,14 +7,10 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import ro.minipay.auth.repository.MiniDSRegisteredClientRepository;
-
 /**
  * Spring Authorization Server security configuration.
  *
@@ -30,9 +26,7 @@ import ro.minipay.auth.repository.MiniDSRegisteredClientRepository;
 @RequiredArgsConstructor
 public class AuthSecurityConfig {
 
-    private final JwtEncoder jwtEncoder;
     private final JwtDecoder jwtDecoder;
-    private final MiniDSRegisteredClientRepository registeredClientRepository;
 
     /**
      * Authorization server security filter chain.

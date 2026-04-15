@@ -1,0 +1,262 @@
+{
+  "info": {
+    "name": "MiniPay — audit-svc",
+    "description": "Colectie pentru audit-svc (port 8091) — Merkle-style hash chain audit log.\n\nFiecare tranzactie procesata de gateway-svc genereaza un event Kafka\ncare este consumat de audit-svc si adaugat la hash chain.\n\nentryHash = SHA-256(seq + txnId + status + amount + currency + merchantId + fraudScore + timestamp + prevHash)\n\nTamper-evident: orice modificare a unui entry rupe chain-ul de la acel punct.\n\nCompliant PCI DSS v4.0 Requirement 10 (log integrity).\n\nFlux demo prezentare:\n1. Health Check\n2. Proceseaza 2-3 plati prin gateway-svc (port 8084)\n3. GET /audit/entries — vezi chain-ul crescand\n4. GET /audit/verify — isValid=true\n5. [Manual] UPDATE audit_entries SET status='HACKED' WHERE id=1 in PostgreSQL\n6. GET /audit/verify — isValid=false, brokenSequence=1\n7. Merkle Tree violation demonstrata!",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "audit_url",   "value": "http://localhost:8091", "type": "string" },
+    { "key": "gateway_url", "value": "http://localhost:8084", "type": "string" },
+    { "key": "jwt_token",   "value": "", "type": "string" },
+    { "key": "last_txn_id", "value": "", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{audit_url}}/actuator/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Setup — Genereaza tranzactii (via gateway)",
+      "description": "Ruleaza aceste requesturi pentru a popula chain-ul cu date reale.\nFiecare plata autorizata → event Kafka → audit entry.",
+      "item": [
+        {
+          "name": "Plata 1 — Visa APPROVED",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/authorize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 15000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-demo-001\",\n  \"orderId\": \"order-audit-001\"\n}"
+            },
+            "description": "Plata normala → AUTHORIZED → event in Kafka → audit entry #1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200/201', () => pm.expect(pm.response.code).to.be.oneOf([200,201]));",
+                  "const json = pm.response.json();",
+                  "if (json.txnId) pm.collectionVariables.set('last_txn_id', json.txnId);",
+                  "console.log('txnId:', json.txnId, '| status:', json.status);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Plata 2 — Visa BLOCKED (fraud)",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/authorize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4000000000000002\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 50000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-demo-001\",\n  \"orderId\": \"order-audit-002\"\n}"
+            },
+            "description": "Card blocat → DECLINED → audit entry #2"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "console.log('txnId:', json.txnId, '| status:', json.status);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Plata 3 — Mastercard APPROVED",
+          "request": {
+            "method": "POST",
+            "url": "{{gateway_url}}/v1/payments/authorize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"5500000000000004\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 32000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-demo-002\",\n  \"orderId\": \"order-audit-003\"\n}"
+            },
+            "description": "Plata Mastercard → AUTHORIZED → audit entry #3"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "console.log('txnId:', json.txnId, '| status:', json.status);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Audit Log",
+      "item": [
+        {
+          "name": "GET /audit/entries — lista paginata",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{audit_url}}/audit/entries?page=0&size=20",
+              "host": ["{{audit_url}}"],
+              "path": ["audit", "entries"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            },
+            "description": "Lista tuturor intrarilor din audit log, sortate descendent (cel mai recent primul).\nFiecare entry are: sequenceNumber, txnId, status, amount, prevHash, entryHash."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Are content array', () => pm.expect(json.content).to.be.an('array'));",
+                  "console.log('Total entries:', json.totalElements);",
+                  "if (json.content.length > 0) {",
+                  "    const e = json.content[0];",
+                  "    console.log('Latest entry:', JSON.stringify({",
+                  "        seq: e.sequenceNumber,",
+                  "        txnId: e.txnId,",
+                  "        status: e.status,",
+                  "        hash: e.entryHash?.substring(0,16) + '...'",
+                  "    }, null, 2));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "GET /audit/entries/{txnId} — entry specific",
+          "request": {
+            "method": "GET",
+            "url": "{{audit_url}}/audit/entries/{{last_txn_id}}",
+            "description": "Cauta un entry dupa txnId.\ntxnId setat automat de 'Plata 1 — Visa APPROVED'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const e = pm.response.json();",
+                  "pm.test('txnId match', () => pm.expect(e.txnId).to.eql(pm.collectionVariables.get('last_txn_id')));",
+                  "pm.test('entryHash prezent (64 chars)', () => pm.expect(e.entryHash).to.have.lengthOf(64));",
+                  "pm.test('prevHash prezent (64 chars)', () => pm.expect(e.prevHash).to.have.lengthOf(64));",
+                  "console.log('seq:', e.sequenceNumber);",
+                  "console.log('entryHash:', e.entryHash);",
+                  "console.log('prevHash: ', e.prevHash);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Hash Chain Verification",
+      "item": [
+        {
+          "name": "GET /audit/verify — chain intact",
+          "request": {
+            "method": "GET",
+            "url": "{{audit_url}}/audit/verify",
+            "description": "Verifica integritatea intregului hash chain.\nRecomputa fiecare hash din date si compara cu cel stocat.\nAsteptat: isValid=true daca nu s-a tampinat cu datele."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Chain INTACT', () => pm.expect(json.isValid).to.be.true);",
+                  "console.log('=== HASH CHAIN VERIFICATION ===');",
+                  "console.log('isValid:      ', json.isValid);",
+                  "console.log('totalEntries: ', json.totalEntries);",
+                  "console.log('message:      ', json.message);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "GET /audit/verify — dupa tamperare manuala",
+          "request": {
+            "method": "GET",
+            "url": "{{audit_url}}/audit/verify",
+            "description": "Ruleaza DUPA ce ai modificat manual un entry in PostgreSQL:\n\n  docker exec -it <postgres_container> psql -U minipay -d minipay_audit\n  UPDATE audit_entries SET status='HACKED' WHERE sequence_number=1;\n  \\q\n\nAsteptat: isValid=false, brokenSequence=1\nDemonstreaza ca Merkle-style hash chain detecteaza tampering instant!\n\nAcesta este demo-ul principal pentru Cap.5.8 din disertatie."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "console.log('=== TAMPER DETECTION DEMO ===');",
+                  "console.log('isValid:        ', json.isValid);",
+                  "console.log('totalEntries:   ', json.totalEntries);",
+                  "console.log('message:        ', json.message);",
+                  "if (!json.isValid) {",
+                  "    console.log('brokenSequence: ', json.brokenSequence);",
+                  "    console.log('brokenTxnId:    ', json.brokenTxnId);",
+                  "    pm.test('TAMPER DETECTED', () => pm.expect(json.isValid).to.be.false);",
+                  "    pm.test('brokenSequence prezent', () => pm.expect(json.brokenSequence).to.exist);",
+                  "} else {",
+                  "    console.log('ATENTIE: chain inca intact — ai facut UPDATE in PostgreSQL?');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+
+  ]
+}

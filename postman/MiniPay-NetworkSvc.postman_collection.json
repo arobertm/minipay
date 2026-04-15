@@ -1,0 +1,285 @@
+{
+  "info": {
+    "name": "MiniPay — network-svc",
+    "description": "Colectie pentru network-svc (port 8086) — card network simulator.\n\nNetwork-svc orchestreaza:\n  1. Detokenizare DPAN → PAN (via vault-svc:8085)\n  2. Autorizare PAN   → responseCode (via issuer-svc:8087)\n\nNu necesita JWT — serviciu intern (apelat de gateway-svc)\n\nPrerequisite: Ruleaza vault-svc + issuer-svc\n\nFlux recomandat:\n1. Health Check\n2. [extern] Tokenize PAN in vault → obtine DPAN → salveaza in variabila\n3. Authorize cu DPAN Visa → APPROVED\n4. Authorize cu DPAN Visa blocked → DECLINED (05)\n5. Authorize cu DPAN insuf. funds → DECLINED (51)\n6. Authorize cu DPAN invalid → System Error (96)\n\nNote: network-svc primeste DPAN-uri, nu PAN-uri.\nFoloseste DPAN-urile obtinute din colectia MiniPay-VaultSvc.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "network_url", "value": "http://localhost:8086", "type": "string" },
+    { "key": "vault_url",   "value": "http://localhost:8085", "type": "string" },
+    { "key": "dpan_approved",  "value": "", "type": "string", "description": "DPAN pentru 4111111111111111 — setat de pre-request script" },
+    { "key": "dpan_blocked",   "value": "", "type": "string", "description": "DPAN pentru 4000000000000002" },
+    { "key": "dpan_insuf",     "value": "", "type": "string", "description": "DPAN pentru 4000000000009995" },
+    { "key": "jwt_token",      "value": "", "type": "string", "description": "JWT pentru vault detokenize (daca vault cere auth)" }
+  ],
+  "item": [
+
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{network_url}}/actuator/health",
+            "description": "Verifica ca network-svc ruleaza."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Setup — Tokenize PAN-uri de test",
+      "description": "Tokenizeaza cardurile de test in vault-svc pentru a obtine DPAN-uri.\nRuleaza aceste requesturi o data si DPAN-urile se salveaza automat in variabile.",
+      "item": [
+
+        {
+          "name": "Tokenize Visa 4111 → salveaza dpan_approved",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/tokenize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"12/28\"\n}"
+            },
+            "description": "Tokenizeaza Visa 4111 (ACTIVE, balance 5000 RON).\nDPAN salvat automat in variabila dpan_approved."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "const dpan = pm.response.json().dpan;",
+                  "pm.collectionVariables.set('dpan_approved', dpan);",
+                  "console.log('dpan_approved setat:', dpan);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Tokenize Visa 4000...0002 → salveaza dpan_blocked",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/tokenize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4000000000000002\",\n  \"expiryDate\": \"12/28\"\n}"
+            },
+            "description": "Tokenizeaza Visa BLOCKED. DPAN salvat in dpan_blocked."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "const dpan = pm.response.json().dpan;",
+                  "pm.collectionVariables.set('dpan_blocked', dpan);",
+                  "console.log('dpan_blocked setat:', dpan);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Tokenize Visa 4000...9995 → salveaza dpan_insuf",
+          "request": {
+            "method": "POST",
+            "url": "{{vault_url}}/vault/tokenize",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4000000000009995\",\n  \"expiryDate\": \"12/28\"\n}"
+            },
+            "description": "Tokenizeaza Visa balance 0. DPAN salvat in dpan_insuf."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created 201', () => pm.response.to.have.status(201));",
+                  "const dpan = pm.response.json().dpan;",
+                  "pm.collectionVariables.set('dpan_insuf', dpan);",
+                  "console.log('dpan_insuf setat:', dpan);"
+                ]
+              }
+            }
+          ]
+        }
+
+      ]
+    },
+
+    {
+      "name": "Autorizare via network",
+      "item": [
+
+        {
+          "name": "Authorize — DPAN Visa → APPROVED (00)",
+          "request": {
+            "method": "POST",
+            "url": "{{network_url}}/network/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"{{dpan_approved}}\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"txnId\": \"net-txn-001\"\n}"
+            },
+            "description": "Flow complet: network-svc detokenizeaza DPAN via vault-svc,\ntrimite PAN la issuer-svc → APPROVED.\n\nPrerequisite: ruleaza 'Tokenize Visa 4111' mai intai."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('APPROVED (00)', () => pm.expect(json.responseCode).to.eql('00'));",
+                  "pm.test('authCode prezent', () => pm.expect(json.authCode).to.not.be.empty);",
+                  "console.log('Network result: responseCode=', json.responseCode, 'authCode=', json.authCode);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — DPAN Visa blocked → DO NOT HONOR (05)",
+          "request": {
+            "method": "POST",
+            "url": "{{network_url}}/network/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"{{dpan_blocked}}\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"txnId\": \"net-txn-002\"\n}"
+            },
+            "description": "DPAN pentru cardul BLOCKED → issuer returneaza 05 Do Not Honor."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('DO NOT HONOR (05)', () => pm.expect(pm.response.json().responseCode).to.eql('05'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — DPAN Visa insuf funds → INSUFFICIENT FUNDS (51)",
+          "request": {
+            "method": "POST",
+            "url": "{{network_url}}/network/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"{{dpan_insuf}}\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"txnId\": \"net-txn-003\"\n}"
+            },
+            "description": "DPAN pentru cardul cu balance 0 → issuer returneaza 51 Insufficient Funds."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('INSUFFICIENT FUNDS (51)', () => pm.expect(pm.response.json().responseCode).to.eql('51'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — DPAN inexistent → SYSTEM ERROR (96)",
+          "request": {
+            "method": "POST",
+            "url": "{{network_url}}/network/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"4111000000000099\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"txnId\": \"net-txn-004\"\n}"
+            },
+            "description": "DPAN care nu exista in vault → detokenizare esueaza → responseCode=96 (System Malfunction)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('SYSTEM ERROR (96)', () => pm.expect(pm.response.json().responseCode).to.eql('96'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — body invalid → 400",
+          "request": {
+            "method": "POST",
+            "url": "{{network_url}}/network/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"\",\n  \"amount\": 0\n}"
+            },
+            "description": "DPAN gol si amount 0 — @NotBlank + @Min(1) → 400 Bad Request."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bad Request 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+
+      ]
+    }
+
+  ]
+}

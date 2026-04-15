@@ -1,6 +1,5 @@
 package ro.minipay.auth.config;
 
-import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
@@ -19,15 +18,14 @@ import org.bouncycastle.pqc.jcajce.provider.BouncyCastlePQCProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Security;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.UUID;
 
 /**
  * JWT configuration — RS256 (RSA-2048) + CRYSTALS-Dilithium3 (NIST FIPS 204).
@@ -71,14 +69,18 @@ public class JwtConfig {
         return (RSAPublicKey) rsaKeyPair.getPublic();
     }
 
+    /**
+     * JWKSource bean — used by Spring Authorization Server for BOTH token signing
+     * AND the JWKS endpoint. Must be a bean so the JWKS endpoint returns the same key
+     * that was used to sign the token.
+     */
     @Bean
-    public JwtEncoder jwtEncoder(KeyPair rsaKeyPair) throws JOSEException {
+    public JWKSource<SecurityContext> jwkSource(KeyPair rsaKeyPair) {
         RSAKey rsaKey = new RSAKey.Builder((RSAPublicKey) rsaKeyPair.getPublic())
             .privateKey((RSAPrivateKey) rsaKeyPair.getPrivate())
-            .keyID("rsa-2048-1")
+            .keyID(UUID.randomUUID().toString())
             .build();
-        JWKSource<SecurityContext> jwkSource = new ImmutableJWKSet<>(new JWKSet(rsaKey));
-        return new NimbusJwtEncoder(jwkSource);
+        return new ImmutableJWKSet<>(new JWKSet(rsaKey));
     }
 
     @Bean

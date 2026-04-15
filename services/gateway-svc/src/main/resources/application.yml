@@ -20,6 +20,9 @@ spring:
           jwk-set-uri: ${AUTH_JWK_URI:http://auth-svc:8081/oauth2/jwks-rs256}
           issuer-uri: ${AUTH_ISSUER_URI:http://auth-svc:8081}
 
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
 # Downstream service URLs
 services:
   vault-url:       ${VAULT_URL:http://vault-svc:8085}

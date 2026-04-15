@@ -3,6 +3,9 @@ package ro.minipay.gateway.client;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
@@ -36,9 +39,11 @@ public class FraudClient {
                 "merchantId", merchantId,
                 "ipAddress",  ipAddress != null ? ipAddress : ""
             );
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(
-                fraudUrl + "/fraud/score", body, Map.class);
+                fraudUrl + "/fraud/score", new HttpEntity<>(body, headers), Map.class);
 
             if (response == null) return FraudResult.safe();
 

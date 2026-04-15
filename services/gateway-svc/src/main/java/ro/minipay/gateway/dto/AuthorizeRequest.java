@@ -6,7 +6,7 @@ import jakarta.validation.constraints.*;
  * Payment authorization request from merchant.
  *
  * pan        — card number (13-19 digits), never stored in gateway
- * expiryDate — MMYY format
+ * expiryDate — MM/YY format (e.g. 12/28)
  * cvv        — 3-4 digits, never stored anywhere
  * amount     — in cents (e.g. 10000 = 100.00 RON)
  * currency   — ISO 4217 (RON, EUR, USD)
@@ -19,7 +19,7 @@ public record AuthorizeRequest(
     String pan,
 
     @NotBlank
-    @Pattern(regexp = "\\d{4}", message = "expiryDate must be MMYY")
+    @Pattern(regexp = "\\d{2}/\\d{2}", message = "expiryDate must be MM/YY")
     String expiryDate,
 
     @NotBlank

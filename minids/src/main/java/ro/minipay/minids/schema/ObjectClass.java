@@ -85,6 +85,16 @@ public enum ObjectClass {
     ),
 
     /**
+     * Vault token — EMV tokenization entry stored by vault-svc.
+     * Holds AES-256-GCM encrypted PAN and expiry alongside the DPAN.
+     */
+    VAULT_TOKEN(
+        "vaultToken",
+        Set.of("uid", "encPan", "bin", "createdAt"),
+        Set.of("encExpiry")
+    ),
+
+    /**
      * Organizational container (OU).
      * Equivalent: organizationalUnit in LDAP
      */

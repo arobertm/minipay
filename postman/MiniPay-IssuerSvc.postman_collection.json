@@ -1,0 +1,267 @@
+{
+  "info": {
+    "name": "MiniPay — issuer-svc",
+    "description": "Colectie pentru issuer-svc (port 8087) — simulator banca emitenta.\n\nStorare: PostgreSQL (minipay_issuer)\nNu necesita JWT — serviciu intern (apelat de network-svc)\n\nCarduri de test preincarcate:\n  4111111111111111 → APPROVED (balance 5000 RON)\n  4000000000000002 → BLOCKED  → 05 Do Not Honor\n  4000000000009995 → balance 0 → 51 Insufficient Funds\n  5500000000000004 → APPROVED (balance 5000 RON)\n\nFlux recomandat:\n1. Health Check\n2. Authorize Visa APPROVED\n3. Authorize Visa BLOCKED\n4. Authorize Visa Insufficient Funds\n5. Authorize Mastercard APPROVED\n6. Authorize card inexistent → 14\n7. Authorize amount prea mare → 51",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "issuer_url", "value": "http://localhost:8087", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{issuer_url}}/actuator/health",
+            "description": "Verifica ca issuer-svc ruleaza si PostgreSQL e conectat."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "Autorizare carduri de test",
+      "item": [
+
+        {
+          "name": "Authorize — Visa 4111 → APPROVED (00)",
+          "request": {
+            "method": "POST",
+            "url": "{{issuer_url}}/issuer/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"txnId\": \"txn-visa-approved-001\"\n}"
+            },
+            "description": "Card Visa standard de test — ACTIVE, balance 5000 RON.\nAmount 10000 = 100.00 RON (in cents).\nRaspuns asteptat: responseCode=00, authCode generat (6 chars)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('APPROVED (00)', () => pm.expect(json.responseCode).to.eql('00'));",
+                  "pm.test('authCode prezent', () => pm.expect(json.authCode).to.have.lengthOf(6));",
+                  "pm.test('holderName prezent', () => pm.expect(json.holderName).to.not.be.empty);",
+                  "pm.collectionVariables.set('last_auth_code', json.authCode);",
+                  "console.log('Auth code:', json.authCode, '| Holder:', json.holderName);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — Visa 4000...0002 → BLOCKED (05)",
+          "request": {
+            "method": "POST",
+            "url": "{{issuer_url}}/issuer/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4000000000000002\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"txnId\": \"txn-visa-blocked-001\"\n}"
+            },
+            "description": "Card Visa cu status BLOCKED.\nRaspuns asteptat: responseCode=05 (Do Not Honor).\nAuthCode trebuie sa fie gol — tranzactia e refuzata."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('BLOCKED (05)', () => pm.expect(json.responseCode).to.eql('05'));",
+                  "pm.test('authCode gol', () => pm.expect(json.authCode).to.be.empty);"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — Visa 4000...9995 → INSUFFICIENT FUNDS (51)",
+          "request": {
+            "method": "POST",
+            "url": "{{issuer_url}}/issuer/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4000000000009995\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"txnId\": \"txn-visa-insuf-001\"\n}"
+            },
+            "description": "Card Visa cu balance 0 RON.\nOrice amount > 0 → responseCode=51 (Insufficient Funds)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('INSUFFICIENT FUNDS (51)', () => pm.expect(pm.response.json().responseCode).to.eql('51'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — Mastercard 5500 → APPROVED (00)",
+          "request": {
+            "method": "POST",
+            "url": "{{issuer_url}}/issuer/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"5500000000000004\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 25000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-mc-001\",\n  \"txnId\": \"txn-mc-approved-001\"\n}"
+            },
+            "description": "Card Mastercard standard de test — ACTIVE, balance 5000 RON.\nAmount 25000 = 250.00 RON."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('APPROVED (00)', () => pm.expect(pm.response.json().responseCode).to.eql('00'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — card inexistent → INVALID CARD (14)",
+          "request": {
+            "method": "POST",
+            "url": "{{issuer_url}}/issuer/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"9999999999999999\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"txnId\": \"txn-invalid-card-001\"\n}"
+            },
+            "description": "PAN care nu exista in baza de date a issuer-ului.\nRaspuns: responseCode=14 (Invalid Card Number)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('INVALID CARD (14)', () => pm.expect(pm.response.json().responseCode).to.eql('14'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — card expirat → EXPIRED CARD (54)",
+          "request": {
+            "method": "POST",
+            "url": "{{issuer_url}}/issuer/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"01/20\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"txnId\": \"txn-expired-001\"\n}"
+            },
+            "description": "Card valid in baza de date, dar expiryDate 01/20 e in trecut.\nRaspuns: responseCode=54 (Expired Card)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('EXPIRED CARD (54)', () => pm.expect(pm.response.json().responseCode).to.eql('54'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — amount > balance → INSUFFICIENT FUNDS (51)",
+          "request": {
+            "method": "POST",
+            "url": "{{issuer_url}}/issuer/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 999999999,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"txnId\": \"txn-overspend-001\"\n}"
+            },
+            "description": "Amount 999999999 cents (9,999,999.99 RON) >> balance 5000 RON.\nRaspuns: responseCode=51 (Insufficient Funds)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('INSUFFICIENT FUNDS (51)', () => pm.expect(pm.response.json().responseCode).to.eql('51'));"
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Authorize — body invalid → 400",
+          "request": {
+            "method": "POST",
+            "url": "{{issuer_url}}/issuer/authorize",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"\",\n  \"amount\": -100\n}"
+            },
+            "description": "PAN gol si amount negativ — @NotBlank + @Min(1) validation → 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bad Request 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+
+      ]
+    }
+
+  ]
+}

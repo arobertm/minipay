@@ -12,6 +12,8 @@ import ro.minipay.gateway.dto.AuthorizeRequest;
 import ro.minipay.gateway.dto.CaptureRequest;
 import ro.minipay.gateway.dto.PaymentResponse;
 import ro.minipay.gateway.dto.RefundRequest;
+import ro.minipay.gateway.kafka.PaymentAuditEvent;
+import ro.minipay.gateway.kafka.PaymentEventPublisher;
 import ro.minipay.gateway.model.PaymentDeclineReason;
 import ro.minipay.gateway.model.PaymentStatus;
 
@@ -39,9 +41,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class PaymentService {
 
-    private final VaultClient   vaultClient;
-    private final FraudClient   fraudClient;
-    private final NetworkClient networkClient;
+    private final VaultClient            vaultClient;
+    private final FraudClient            fraudClient;
+    private final NetworkClient          networkClient;
+    private final PaymentEventPublisher  eventPublisher;
 
     // In-memory store: txnId → PaymentResponse
     // Sufficient for demo; production would use MiniDS or PostgreSQL
@@ -162,12 +165,20 @@ public class PaymentService {
                                   PaymentStatus status, String isoCode,
                                   double fraudScore, java.util.List<String> reasons,
                                   String authCode, PaymentDeclineReason declineReason) {
+        String timestamp = Instant.now().toString();
         PaymentResponse response = new PaymentResponse(
             txnId, dpan, status, isoCode,
             req.amount(), req.currency(), req.merchantId(), req.orderId(),
-            fraudScore, reasons, authCode, declineReason, Instant.now().toString()
+            fraudScore, reasons, authCode, declineReason, timestamp
         );
         store.put(txnId, response);
+
+        // Publish to Kafka → audit-svc will append to hash chain
+        eventPublisher.publish(new PaymentAuditEvent(
+            txnId, status.name(), req.amount(), req.currency(),
+            req.merchantId(), "", fraudScore, timestamp
+        ));
+
         return response;
     }
 

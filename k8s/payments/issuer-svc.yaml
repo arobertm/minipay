@@ -1,0 +1,70 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: issuer-svc
+  namespace: minipay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: issuer-svc
+  template:
+    metadata:
+      labels:
+        app: issuer-svc
+    spec:
+      containers:
+        - name: issuer-svc
+          image: minipay/issuer-svc:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8087
+          env:
+            - name: SERVER_PORT
+              value: "8087"
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres:5432/minipay_issuer
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8087
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8087
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: 192Mi
+              cpu: 100m
+            limits:
+              memory: 384Mi
+              cpu: 400m
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: issuer-svc
+  namespace: minipay
+spec:
+  selector:
+    app: issuer-svc
+  ports:
+    - port: 8087
+      targetPort: 8087

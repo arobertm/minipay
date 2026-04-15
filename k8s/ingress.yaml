@@ -1,0 +1,127 @@
+---
+# Traefik Ingress — k3s bundles Traefik as the default ingress controller.
+# All routes use path-based routing on the server's public IP (no DNS required).
+#
+# Access pattern (replace <SERVER_IP> with your DigitalOcean droplet IP):
+#   http://<SERVER_IP>/api/...      → gateway-svc  (main payment API)
+#   http://<SERVER_IP>/auth/...     → auth-svc      (OAuth2/OIDC)
+#   http://<SERVER_IP>/users/...    → user-svc
+#   http://<SERVER_IP>/grafana/...  → Grafana dashboards
+#   http://<SERVER_IP>/kafka/       → Kafka UI
+#   http://<SERVER_IP>/minids/...   → MiniDS REST (debug)
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minipay-ingress
+  namespace: minipay
+  annotations:
+    # Strip the path prefix before forwarding to each service
+    traefik.ingress.kubernetes.io/router.middlewares: minipay-strip-api@kubernetescrd,minipay-strip-auth@kubernetescrd,minipay-strip-users@kubernetescrd,minipay-strip-minids@kubernetescrd,minipay-strip-kafka@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-svc
+                port:
+                  number: 8084
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-svc
+                port:
+                  number: 8081
+          - path: /users
+            pathType: Prefix
+            backend:
+              service:
+                name: user-svc
+                port:
+                  number: 8082
+          - path: /minids
+            pathType: Prefix
+            backend:
+              service:
+                name: minids-api
+                port:
+                  number: 8301
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+          - path: /kafka
+            pathType: Prefix
+            backend:
+              service:
+                name: kafka-ui
+                port:
+                  number: 8080
+
+---
+# Middleware: strip /api prefix before forwarding to gateway-svc
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-api
+  namespace: minipay
+spec:
+  stripPrefix:
+    prefixes:
+      - /api
+
+---
+# Middleware: strip /auth prefix before forwarding to auth-svc
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-auth
+  namespace: minipay
+spec:
+  stripPrefix:
+    prefixes:
+      - /auth
+
+---
+# Middleware: strip /users prefix before forwarding to user-svc
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-users
+  namespace: minipay
+spec:
+  stripPrefix:
+    prefixes:
+      - /users
+
+---
+# Middleware: strip /minids prefix before forwarding to minids-api
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-minids
+  namespace: minipay
+spec:
+  stripPrefix:
+    prefixes:
+      - /minids
+
+---
+# Middleware: strip /kafka prefix before forwarding to kafka-ui
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-kafka
+  namespace: minipay
+spec:
+  stripPrefix:
+    prefixes:
+      - /kafka

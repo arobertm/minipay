@@ -96,7 +96,11 @@
       "Bash(python \"C:/disertatie-master/diag.py\")",
       "Bash(powershell -ExecutionPolicy Bypass -Command \":*)",
       "Bash(python \"C:/disertatie-master/rawtest.py\")",
-      "Bash(docker version:*)"
+      "Bash(docker version:*)",
+      "Bash(while read:*)",
+      "Bash(do wc:*)",
+      "Bash(done)",
+      "Read(//c/disertatie-master/**)"
     ]
   }
 }

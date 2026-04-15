@@ -1,0 +1,64 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: session-svc
+  namespace: minipay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: session-svc
+  template:
+    metadata:
+      labels:
+        app: session-svc
+    spec:
+      containers:
+        - name: session-svc
+          image: minipay/session-svc:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8083
+          env:
+            - name: SERVER_PORT
+              value: "8083"
+            - name: MINIDS_ADDRESS
+              value: http://minids-api:8301
+            - name: AUTH_JWK_URI
+              value: http://auth-svc:8081/oauth2/jwks-rs256
+            - name: AUTH_ISSUER_URI
+              value: http://auth-svc:8081
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8083
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8083
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: 192Mi
+              cpu: 100m
+            limits:
+              memory: 384Mi
+              cpu: 400m
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: session-svc
+  namespace: minipay
+spec:
+  selector:
+    app: session-svc
+  ports:
+    - port: 8083
+      targetPort: 8083

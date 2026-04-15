@@ -1,0 +1,70 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-svc
+  namespace: minipay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-svc
+  template:
+    metadata:
+      labels:
+        app: gateway-svc
+    spec:
+      containers:
+        - name: gateway-svc
+          image: minipay/gateway-svc:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8084
+          env:
+            - name: SERVER_PORT
+              value: "8084"
+            - name: AUTH_JWK_URI
+              value: http://auth-svc:8081/oauth2/jwks-rs256
+            - name: AUTH_ISSUER_URI
+              value: http://auth-svc:8081
+            - name: VAULT_URL
+              value: http://vault-svc:8085
+            - name: FRAUD_URL
+              value: http://fraud-svc:8090
+            - name: NETWORK_URL
+              value: http://network-svc:8086
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 150m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-svc
+  namespace: minipay
+spec:
+  selector:
+    app: gateway-svc
+  ports:
+    - port: 8084
+      targetPort: 8084

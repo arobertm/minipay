@@ -1,0 +1,72 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-svc
+  namespace: minipay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: audit-svc
+  template:
+    metadata:
+      labels:
+        app: audit-svc
+    spec:
+      containers:
+        - name: audit-svc
+          image: minipay/audit-svc:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8091
+          env:
+            - name: SERVER_PORT
+              value: "8091"
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres:5432/minipay_audit
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8091
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8091
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: 192Mi
+              cpu: 100m
+            limits:
+              memory: 384Mi
+              cpu: 400m
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-svc
+  namespace: minipay
+spec:
+  selector:
+    app: audit-svc
+  ports:
+    - port: 8091
+      targetPort: 8091

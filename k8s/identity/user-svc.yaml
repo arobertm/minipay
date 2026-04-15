@@ -1,0 +1,72 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-svc
+  namespace: minipay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-svc
+  template:
+    metadata:
+      labels:
+        app: user-svc
+    spec:
+      containers:
+        - name: user-svc
+          image: minipay/user-svc:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8082
+            - name: grpc
+              containerPort: 9082
+          env:
+            - name: SERVER_PORT
+              value: "8082"
+            - name: GRPC_PORT
+              value: "9082"
+            - name: MINIDS_ADDRESS
+              value: http://minids-api:8301
+            - name: AUTH_JWK_URI
+              value: http://auth-svc:8081/oauth2/jwks-rs256
+            - name: AUTH_ISSUER_URI
+              value: http://auth-svc:8081
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8082
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8082
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-svc
+  namespace: minipay
+spec:
+  selector:
+    app: user-svc
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8082
+    - name: grpc
+      port: 9082
+      targetPort: 9082

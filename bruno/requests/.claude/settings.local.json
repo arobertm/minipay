@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /c/disertatie-master/services/*/src/main/java/*/*.java 2>/dev/null | tail -1)",
+      "Bash(find /c/disertatie-master/services/*/src/main/java -type f -name \"*.java\")",
+      "Bash(while read:*)",
+      "Bash(do echo:*)",
+      "Read(//c/disertatie-master/bruno/requests/**)",
+      "Bash(done)",
+      "Bash(find /c/disertatie-master/services/*/src/main/java -type f -name \"*.java\" | wc -l)",
+      "Bash(ls -la /c/disertatie-master/services/*/Dockerfile)",
+      "Bash(find /c/disertatie-master/k8s -type f | sort && echo \"---\" && grep -h \"memory:\" /c/disertatie-master/k8s/**/*.yaml /c/disertatie-master/k8s/*.yaml 2>/dev/null | sort)"
+    ]
+  }
+}

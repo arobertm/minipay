@@ -1,0 +1,62 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-svc
+  namespace: minipay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: network-svc
+  template:
+    metadata:
+      labels:
+        app: network-svc
+    spec:
+      containers:
+        - name: network-svc
+          image: minipay/network-svc:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8086
+          env:
+            - name: SERVER_PORT
+              value: "8086"
+            - name: VAULT_URL
+              value: http://vault-svc:8085
+            - name: ISSUER_URL
+              value: http://issuer-svc:8087
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8086
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8086
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: 192Mi
+              cpu: 100m
+            limits:
+              memory: 384Mi
+              cpu: 400m
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: network-svc
+  namespace: minipay
+spec:
+  selector:
+    app: network-svc
+  ports:
+    - port: 8086
+      targetPort: 8086

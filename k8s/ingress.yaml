@@ -16,8 +16,8 @@ metadata:
   name: minipay-ingress
   namespace: minipay
   annotations:
-    # Strip the path prefix before forwarding to each service
-    traefik.ingress.kubernetes.io/router.middlewares: minipay-strip-api@kubernetescrd,minipay-strip-auth@kubernetescrd,minipay-strip-users@kubernetescrd,minipay-strip-minids@kubernetescrd,minipay-strip-kafka@kubernetescrd
+    # Strip path prefixes before forwarding (minids excluded — already has /minids/ in its routes)
+    traefik.ingress.kubernetes.io/router.middlewares: minipay-strip-api@kubernetescrd,minipay-strip-auth@kubernetescrd,minipay-strip-users@kubernetescrd,minipay-strip-kafka@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
@@ -101,18 +101,6 @@ spec:
   stripPrefix:
     prefixes:
       - /users
-
----
-# Middleware: strip /minids prefix before forwarding to minids-api
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: strip-minids
-  namespace: minipay
-spec:
-  stripPrefix:
-    prefixes:
-      - /minids
 
 ---
 # Middleware: strip /kafka prefix before forwarding to kafka-ui

@@ -13,7 +13,8 @@
       "Bash(grep -h \"image:\" /c/disertatie-master/k8s/**/*.yaml /c/disertatie-master/k8s/*.yaml)",
       "Bash(xargs grep *)",
       "Bash(grep -h \"image: ghcr.io\\\\|image: minipay\" /c/disertatie-master/k8s/**/*.yaml)",
-      "Bash(xargs sed *)"
+      "Bash(xargs sed *)",
+      "Bash(git *)"
     ]
   }
 }

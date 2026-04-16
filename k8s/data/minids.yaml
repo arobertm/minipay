@@ -1,0 +1,116 @@
+---
+# Headless Service — used by StatefulSet for pod DNS:
+#   minids-0.minids.minipay.svc.cluster.local
+#   minids-1.minids.minipay.svc.cluster.local
+#   minids-2.minids.minipay.svc.cluster.local
+# Short form within namespace: minids-0.minids, minids-1.minids, minids-2.minids
+apiVersion: v1
+kind: Service
+metadata:
+  name: minids
+  namespace: minipay
+  labels:
+    app: minids
+spec:
+  clusterIP: None
+  selector:
+    app: minids
+  ports:
+    - name: api
+      port: 8301
+      targetPort: 8301
+
+---
+# ClusterIP Service — used by other services to reach the MiniDS REST API.
+# Routes to any healthy MiniDS pod; Raft leader handles writes.
+apiVersion: v1
+kind: Service
+metadata:
+  name: minids-api
+  namespace: minipay
+spec:
+  selector:
+    app: minids
+  ports:
+    - name: api
+      port: 8301
+      targetPort: 8301
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minids
+  namespace: minipay
+spec:
+  serviceName: minids        # matches headless service name above
+  replicas: 3
+  selector:
+    matchLabels:
+      app: minids
+  template:
+    metadata:
+      labels:
+        app: minids
+    spec:
+      # Give pods time to establish Raft quorum before being marked ready
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: minids
+          image: ghcr.io/arobertm/minipay/minids:latest
+          imagePullPolicy: Always
+          ports:
+            - name: api
+              containerPort: 8301
+          env:
+            # Derive NODE_ID from pod name: minids-0 → "minids-0.minids"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_ID
+              value: "$(POD_NAME).minids"
+            - name: API_PORT
+              value: "8301"
+            - name: RAFT_PORT
+              value: "8300"
+            # RAFT_PEERS: each peer reachable via headless service DNS + standardized port
+            - name: RAFT_PEERS
+              value: "minids-0.minids:8301,minids-1.minids:8301,minids-2.minids:8301"
+            - name: DATA_DIR
+              value: /data/rocksdb
+            - name: RAFT_RESOLVE_LOCALHOST
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /minids/v1/health
+              port: 8301
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /minids/v1/health
+              port: 8301
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            failureThreshold: 3
+          volumeMounts:
+            - name: data
+              mountPath: /data/rocksdb
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 150m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 2Gi

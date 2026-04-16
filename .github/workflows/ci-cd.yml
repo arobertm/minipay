@@ -144,23 +144,29 @@ jobs:
           SHA="${{ github.sha }}"
           REG="${{ env.IMAGE_PREFIX }}"
 
-          # Map: service-name → k8s manifest file
-          declare -A MANIFESTS=(
-            [minids]="k8s/data/minids.yaml"
-            [auth-svc]="k8s/identity/auth-svc.yaml"
-            [user-svc]="k8s/identity/user-svc.yaml"
-            [session-svc]="k8s/identity/session-svc.yaml"
-            [gateway-svc]="k8s/payments/gateway-svc.yaml"
-            [vault-svc]="k8s/payments/vault-svc.yaml"
-            [network-svc]="k8s/payments/network-svc.yaml"
-            [issuer-svc]="k8s/payments/issuer-svc.yaml"
-            [audit-svc]="k8s/security/audit-svc.yaml"
-            [fraud-svc]="k8s/security/fraud-svc.yaml"
+          # Format: "service-name:path/to/manifest.yaml"
+          # Pattern matches both "minipay/svc:tag" and "ghcr.io/.../minipay/svc:tag"
+          MANIFESTS=(
+            "minids:k8s/data/minids.yaml"
+            "auth-svc:k8s/identity/auth-svc.yaml"
+            "user-svc:k8s/identity/user-svc.yaml"
+            "session-svc:k8s/identity/session-svc.yaml"
+            "gateway-svc:k8s/payments/gateway-svc.yaml"
+            "vault-svc:k8s/payments/vault-svc.yaml"
+            "network-svc:k8s/payments/network-svc.yaml"
+            "issuer-svc:k8s/payments/issuer-svc.yaml"
+            "audit-svc:k8s/security/audit-svc.yaml"
+            "fraud-svc:k8s/security/fraud-svc.yaml"
           )
 
-          for svc in "${!MANIFESTS[@]}"; do
-            file="${MANIFESTS[$svc]}"
-            sed -i "s|image: .*/minipay/${svc}:.*|image: ${REG}/${svc}:${SHA}|g" "$file"
+          for entry in "${MANIFESTS[@]}"; do
+            svc="${entry%%:*}"
+            file="${entry#*:}"
+            if [[ ! -f "$file" ]]; then
+              echo "ERROR: $file not found" && exit 1
+            fi
+            # Matches: "image: minipay/svc:tag" OR "image: ghcr.io/.../svc:tag"
+            sed -i "s|image: [^ ]*/${svc}:[^ ]*|image: ${REG}/${svc}:${SHA}|g" "$file"
             echo "  ✓ $svc → ${REG}/${svc}:${SHA}"
           done
 

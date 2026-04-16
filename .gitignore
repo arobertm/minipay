@@ -20,6 +20,8 @@ logs/
 
 # Docker volumes (locale)
 data/
+# Exceptie: k8s manifests din data/ trebuie urcare
+!k8s/data/
 
 # Environment files (nu le urca niciodata)
 .env

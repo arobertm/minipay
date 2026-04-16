@@ -1,0 +1,27 @@
+server:
+  port: ${SERVER_PORT:8095}
+
+spring:
+  application:
+    name: psd2-svc
+
+  threads:
+    virtual:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    "[ro.minipay.psd2]": DEBUG

@@ -1,0 +1,30 @@
+server:
+  port: ${SERVER_PORT:8096}
+
+spring:
+  application:
+    name: tds-svc
+
+  threads:
+    virtual:
+      enabled: true
+
+tds:
+  base-url: ${TDS_BASE_URL:http://tds-svc:8096}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    "[ro.minipay.tds]": DEBUG

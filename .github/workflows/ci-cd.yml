@@ -90,6 +90,12 @@ jobs:
           - service: settlement-svc
             dockerfile: services/settlement-svc/Dockerfile
             needs_jar: true
+          - service: psd2-svc
+            dockerfile: services/psd2-svc/Dockerfile
+            needs_jar: true
+          - service: tds-svc
+            dockerfile: services/tds-svc/Dockerfile
+            needs_jar: true
 
           # Python service — no JAR needed
           - service: fraud-svc
@@ -165,6 +171,8 @@ jobs:
             "notif-svc:k8s/security/notif-svc.yaml"
             "fraud-svc:k8s/security/fraud-svc.yaml"
             "settlement-svc:k8s/payments/settlement-svc.yaml"
+            "psd2-svc:k8s/payments/psd2-svc.yaml"
+            "tds-svc:k8s/security/tds-svc.yaml"
           )
 
           for entry in "${MANIFESTS[@]}"; do

@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
         - name: fraud-svc
-          image: ghcr.io/arobertm/minipay/fraud-svc:149367767af0f55ac4b6818268407ac4264c1d02
+          image: ghcr.io/arobertm/minipay/fraud-svc:9556d3f285aca00191eda4cf73d992b74d56690e
           imagePullPolicy: Always
           ports:
             - name: http

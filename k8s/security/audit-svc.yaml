@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: audit-svc
-          image: ghcr.io/arobertm/minipay/audit-svc:bd160cb45895b4f037079581ac710da2fe648f11
+          image: ghcr.io/arobertm/minipay/audit-svc:ed372fc4d2740c055c65f2272a47d5f285411e7c
           imagePullPolicy: Always
           ports:
             - name: http

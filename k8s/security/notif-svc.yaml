@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: notif-svc
-          image: ghcr.io/arobertm/minipay/notif-svc:latest
+          image: ghcr.io/arobertm/minipay/notif-svc:1cc57c074f9de3ad6e75301f16ce99b6818a4ba7
           imagePullPolicy: Always
           ports:
             - name: http

@@ -57,7 +57,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: minids
-          image: ghcr.io/arobertm/minipay/minids:cbfa6effe8ded7d06f3d3f037afe15ef5fdfa8bc
+          image: ghcr.io/arobertm/minipay/minids:1cc57c074f9de3ad6e75301f16ce99b6818a4ba7
           imagePullPolicy: Always
           ports:
             - name: api

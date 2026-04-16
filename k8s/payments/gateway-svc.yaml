@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: gateway-svc
-          image: ghcr.io/arobertm/minipay/gateway-svc:cbfa6effe8ded7d06f3d3f037afe15ef5fdfa8bc
+          image: ghcr.io/arobertm/minipay/gateway-svc:1cc57c074f9de3ad6e75301f16ce99b6818a4ba7
           imagePullPolicy: Always
           ports:
             - name: http

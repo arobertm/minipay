@@ -24,6 +24,8 @@ spec:
               value: minipay
             - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
               value: kafka:9092
+            - name: SERVER_SERVLET_CONTEXT_PATH
+              value: /kafka
           resources:
             requests:
               memory: 128Mi

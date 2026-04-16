@@ -23,7 +23,8 @@
         <module>services/issuer-svc</module>
         <module>services/audit-svc</module>
         <module>services/notif-svc</module>
-        <!-- tds-svc, settlement-svc, psd2-svc: not yet implemented -->
+        <module>services/settlement-svc</module>
+        <!-- tds-svc, psd2-svc: not yet implemented -->
     </modules>
 
     <parent>

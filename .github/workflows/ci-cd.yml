@@ -84,6 +84,12 @@ jobs:
           - service: audit-svc
             dockerfile: services/audit-svc/Dockerfile
             needs_jar: true
+          - service: notif-svc
+            dockerfile: services/notif-svc/Dockerfile
+            needs_jar: true
+          - service: settlement-svc
+            dockerfile: services/settlement-svc/Dockerfile
+            needs_jar: true
 
           # Python service — no JAR needed
           - service: fraud-svc
@@ -156,7 +162,9 @@ jobs:
             "network-svc:k8s/payments/network-svc.yaml"
             "issuer-svc:k8s/payments/issuer-svc.yaml"
             "audit-svc:k8s/security/audit-svc.yaml"
+            "notif-svc:k8s/security/notif-svc.yaml"
             "fraud-svc:k8s/security/fraud-svc.yaml"
+            "settlement-svc:k8s/payments/settlement-svc.yaml"
           )
 
           for entry in "${MANIFESTS[@]}"; do

@@ -1,0 +1,72 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: settlement-svc
+  namespace: minipay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: settlement-svc
+  template:
+    metadata:
+      labels:
+        app: settlement-svc
+    spec:
+      containers:
+        - name: settlement-svc
+          image: ghcr.io/arobertm/minipay/settlement-svc:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8094
+          env:
+            - name: SERVER_PORT
+              value: "8094"
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres:5432/minipay
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: password
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8094
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8094
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: 192Mi
+              cpu: 50m
+            limits:
+              memory: 384Mi
+              cpu: 200m
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: settlement-svc
+  namespace: minipay
+spec:
+  selector:
+    app: settlement-svc
+  ports:
+    - port: 8094
+      targetPort: 8094

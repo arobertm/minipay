@@ -31,24 +31,25 @@ spec:
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: db-secret
+                  name: postgres-secret
                   key: username
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: db-secret
+                  name: postgres-secret
                   key: password
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8094
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
             periodSeconds: 10
+            failureThreshold: 6
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8094
-            initialDelaySeconds: 60
+            initialDelaySeconds: 90
             periodSeconds: 15
           resources:
             requests:

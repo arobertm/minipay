@@ -28,13 +28,14 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8095
-            initialDelaySeconds: 20
+            initialDelaySeconds: 60
             periodSeconds: 10
+            failureThreshold: 6
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8095
-            initialDelaySeconds: 40
+            initialDelaySeconds: 90
             periodSeconds: 15
           resources:
             requests:

@@ -15,8 +15,7 @@ public class PaymentEventConsumer {
 
     @KafkaListener(
         topics = "payment-events",
-        groupId = "settlement-svc-group",
-        containerFactory = "kafkaListenerContainerFactory"
+        groupId = "settlement-svc-group"
     )
     public void consume(PaymentEvent event) {
         log.debug("[SETTLEMENT-CONSUMER] received txnId={} status={}", event.txnId(), event.status());

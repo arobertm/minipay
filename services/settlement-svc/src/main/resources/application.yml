@@ -26,6 +26,16 @@ spring:
 
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: settlement-svc-group
+      auto-offset-reset: earliest
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: ro.minipay.settlement.kafka.PaymentEvent
+        spring.json.use.type.headers: false
+    listener:
+      missing-topics-fatal: false
 
 management:
   endpoints:

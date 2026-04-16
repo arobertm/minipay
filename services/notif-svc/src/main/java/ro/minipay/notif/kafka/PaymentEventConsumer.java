@@ -23,8 +23,7 @@ public class PaymentEventConsumer {
 
     @KafkaListener(
         topics = "payment-events",
-        groupId = "notif-svc-group",
-        containerFactory = "kafkaListenerContainerFactory"
+        groupId = "notif-svc-group"
     )
     public void consume(PaymentEvent event) {
         log.debug("Received payment event: txnId={} status={}", event.txnId(), event.status());

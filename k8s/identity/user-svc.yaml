@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: user-svc
-          image: ghcr.io/arobertm/minipay/user-svc:ed572405742b4dab7a54b66bee345c2f7d1f4001
+          image: ghcr.io/arobertm/minipay/user-svc:10333c9ba2da00e291bbec15a40d1a5e2a9c5302
           imagePullPolicy: Always
           ports:
             - name: http

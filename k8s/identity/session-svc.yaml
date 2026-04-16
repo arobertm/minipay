@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: session-svc
-          image: ghcr.io/arobertm/minipay/session-svc:bd034e48c8299ca27827f70fb0a3afe73c562bdf
+          image: ghcr.io/arobertm/minipay/session-svc:ed572405742b4dab7a54b66bee345c2f7d1f4001
           imagePullPolicy: Always
           ports:
             - name: http

@@ -49,11 +49,8 @@ spec:
             - name: CLUSTER_ID
               value: MkU3OEVBNTcwNTJENDM2Qg
           readinessProbe:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+            tcpSocket:
+              port: 9092
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 5

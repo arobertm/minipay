@@ -59,13 +59,6 @@ spec:
                 name: grafana
                 port:
                   number: 3000
-          - path: /kafka
-            pathType: Prefix
-            backend:
-              service:
-                name: kafka-ui
-                port:
-                  number: 8080
 
 ---
 # Middleware: strip /api prefix before forwarding to gateway-svc

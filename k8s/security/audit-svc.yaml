@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: audit-svc
-          image: minipay/audit-svc:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/arobertm/minipay/audit-svc:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8091

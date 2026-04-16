@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: network-svc
-          image: minipay/network-svc:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/arobertm/minipay/network-svc:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8086

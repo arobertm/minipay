@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: auth-svc
-          image: minipay/auth-svc:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/arobertm/minipay/auth-svc:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8081

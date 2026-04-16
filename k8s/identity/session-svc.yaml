@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: session-svc
-          image: minipay/session-svc:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/arobertm/minipay/session-svc:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8083

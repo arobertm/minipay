@@ -29,8 +29,8 @@ spec:
     spec:
       containers:
         - name: fraud-svc
-          image: minipay/fraud-svc:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/arobertm/minipay/fraud-svc:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8090

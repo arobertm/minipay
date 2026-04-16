@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: gateway-svc
-          image: minipay/gateway-svc:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/arobertm/minipay/gateway-svc:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8084

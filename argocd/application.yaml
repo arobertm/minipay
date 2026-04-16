@@ -1,0 +1,42 @@
+---
+# Argo CD Application — MiniPay
+#
+# Apply once on the k3s droplet after installing Argo CD:
+#   kubectl apply -f argocd/application.yaml
+#
+# After this, every git push to main that changes k8s/ will be auto-synced.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minipay
+  namespace: argocd
+  # Cascade delete: when Application is deleted, k8s resources are also deleted
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/arobertm/minipay.git
+    targetRevision: HEAD
+    # Argo CD watches everything inside k8s/ recursively
+    path: k8s
+    directory:
+      recurse: true
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: minipay
+
+  syncPolicy:
+    automated:
+      # Remove k8s resources that are no longer in git
+      prune: true
+      # Re-apply if someone manually changes something in k8s (drift correction)
+      selfHeal: true
+    syncOptions:
+      # Create the minipay namespace if it doesn't exist
+      - CreateNamespace=true
+      # Don't fail if some resources can't be pruned immediately (StatefulSets)
+      - PrunePropagationPolicy=foreground

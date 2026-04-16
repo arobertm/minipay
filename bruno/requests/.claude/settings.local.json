@@ -9,7 +9,11 @@
       "Bash(done)",
       "Bash(find /c/disertatie-master/services/*/src/main/java -type f -name \"*.java\" | wc -l)",
       "Bash(ls -la /c/disertatie-master/services/*/Dockerfile)",
-      "Bash(find /c/disertatie-master/k8s -type f | sort && echo \"---\" && grep -h \"memory:\" /c/disertatie-master/k8s/**/*.yaml /c/disertatie-master/k8s/*.yaml 2>/dev/null | sort)"
+      "Bash(find /c/disertatie-master/k8s -type f | sort && echo \"---\" && grep -h \"memory:\" /c/disertatie-master/k8s/**/*.yaml /c/disertatie-master/k8s/*.yaml 2>/dev/null | sort)",
+      "Bash(grep -h \"image:\" /c/disertatie-master/k8s/**/*.yaml /c/disertatie-master/k8s/*.yaml)",
+      "Bash(xargs grep *)",
+      "Bash(grep -h \"image: ghcr.io\\\\|image: minipay\" /c/disertatie-master/k8s/**/*.yaml)",
+      "Bash(xargs sed *)"
     ]
   }
 }

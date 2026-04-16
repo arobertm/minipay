@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: psd2-svc
-          image: ghcr.io/arobertm/minipay/psd2-svc:latest
+          image: ghcr.io/arobertm/minipay/psd2-svc:bd034e48c8299ca27827f70fb0a3afe73c562bdf
           imagePullPolicy: Always
           ports:
             - name: http

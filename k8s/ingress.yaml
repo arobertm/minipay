@@ -19,10 +19,16 @@ metadata:
     # Strip path prefixes before forwarding
     # Excluded: minids (serves at /minids/v1/), kafka-ui (context path set via SERVER_SERVLET_CONTEXT_PATH)
     traefik.ingress.kubernetes.io/router.middlewares: minipay-strip-api@kubernetescrd,minipay-strip-auth@kubernetescrd,minipay-strip-users@kubernetescrd,minipay-strip-notif@kubernetescrd,minipay-strip-psd2@kubernetescrd,minipay-strip-tds@kubernetescrd,minipay-strip-settlements@kubernetescrd
+    traefik.ingress.kubernetes.io/router.tls.certresolver: "letsencrypt"
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - api-minipay.online
+      secretName: api-minipay-tls
   rules:
-    - http:
+    - host: api-minipay.online
+      http:
         paths:
           - path: /api
             pathType: Prefix

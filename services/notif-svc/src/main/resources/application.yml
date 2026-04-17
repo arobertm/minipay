@@ -30,6 +30,9 @@ management:
   endpoint:
     health:
       show-details: always
+  health:
+    kafka:
+      enabled: false   # Kafka unavailability must not block readiness
   metrics:
     export:
       prometheus:

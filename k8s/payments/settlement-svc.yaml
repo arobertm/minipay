@@ -38,26 +38,34 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: password
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8094
+            failureThreshold: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8094
-            initialDelaySeconds: 60
             periodSeconds: 10
-            failureThreshold: 6
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8094
-            initialDelaySeconds: 90
-            periodSeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               memory: 192Mi
-              cpu: 50m
+              cpu: 100m
             limits:
               memory: 384Mi
-              cpu: 200m
+              cpu: 300m
 
 ---
 apiVersion: v1

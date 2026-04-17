@@ -24,26 +24,34 @@ spec:
           env:
             - name: SERVER_PORT
               value: "8095"
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8095
+            failureThreshold: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8095
-            initialDelaySeconds: 60
             periodSeconds: 10
-            failureThreshold: 6
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8095
-            initialDelaySeconds: 90
-            periodSeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               memory: 128Mi
-              cpu: 50m
+              cpu: 100m
             limits:
               memory: 256Mi
-              cpu: 200m
+              cpu: 300m
 
 ---
 apiVersion: v1

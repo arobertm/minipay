@@ -26,26 +26,36 @@ spec:
               value: "8093"
             - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
               value: kafka:9092
+          # startupProbe gives up to 5 min for JVM startup under CPU throttling.
+          # Once it passes, readiness/liveness take over.
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8093
+            failureThreshold: 30   # 30 × 10s = 5 minutes max
+            periodSeconds: 10
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8093
-            initialDelaySeconds: 60
             periodSeconds: 10
-            failureThreshold: 6
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8093
-            initialDelaySeconds: 90
-            periodSeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               memory: 128Mi
-              cpu: 50m
+              cpu: 100m
             limits:
               memory: 256Mi
-              cpu: 200m
+              cpu: 300m
 
 ---
 apiVersion: v1

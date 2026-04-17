@@ -93,7 +93,7 @@ sep "3. notif-svc + settlement-svc (via real payment)"
 
 info "Getting OAuth2 token..."
 TOKEN=$(curl -sf -X POST http://$AUTH/oauth2/token \
-  -u "gateway-client:secret" \
+  -u "demo-client:demo-secret" \
   -d "grant_type=client_credentials&scope=payments:write" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 ok "Token: ${TOKEN:0:40}..."

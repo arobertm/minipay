@@ -18,7 +18,7 @@ metadata:
   annotations:
     # Strip path prefixes before forwarding
     # Excluded: minids (serves at /minids/v1/), kafka-ui (context path set via SERVER_SERVLET_CONTEXT_PATH)
-    traefik.ingress.kubernetes.io/router.middlewares: minipay-strip-api@kubernetescrd,minipay-strip-auth@kubernetescrd,minipay-strip-users@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: minipay-strip-api@kubernetescrd,minipay-strip-auth@kubernetescrd,minipay-strip-users@kubernetescrd,minipay-strip-notif@kubernetescrd,minipay-strip-psd2@kubernetescrd,minipay-strip-tds@kubernetescrd,minipay-strip-settlements@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
@@ -52,6 +52,34 @@ spec:
                 name: minids-api
                 port:
                   number: 8301
+          - path: /notif
+            pathType: Prefix
+            backend:
+              service:
+                name: notif-svc
+                port:
+                  number: 8093
+          - path: /psd2
+            pathType: Prefix
+            backend:
+              service:
+                name: psd2-svc
+                port:
+                  number: 8095
+          - path: /tds
+            pathType: Prefix
+            backend:
+              service:
+                name: tds-svc
+                port:
+                  number: 8096
+          - path: /settlements
+            pathType: Prefix
+            backend:
+              service:
+                name: settlement-svc
+                port:
+                  number: 8094
           - path: /grafana
             pathType: Prefix
             backend:
@@ -95,4 +123,48 @@ spec:
   stripPrefix:
     prefixes:
       - /users
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-notif
+  namespace: minipay
+spec:
+  stripPrefix:
+    prefixes:
+      - /notif
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-psd2
+  namespace: minipay
+spec:
+  stripPrefix:
+    prefixes:
+      - /psd2
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-tds
+  namespace: minipay
+spec:
+  stripPrefix:
+    prefixes:
+      - /tds
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-settlements
+  namespace: minipay
+spec:
+  stripPrefix:
+    prefixes:
+      - /settlements
 

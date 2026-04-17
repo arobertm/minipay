@@ -38,6 +38,8 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: password
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx256m -XX:+UseG1GC -XX:MaxMetaspaceSize=128m"
           startupProbe:
             httpGet:
               path: /actuator/health
@@ -61,10 +63,10 @@ spec:
             failureThreshold: 3
           resources:
             requests:
-              memory: 192Mi
+              memory: 256Mi
               cpu: 100m
             limits:
-              memory: 384Mi
+              memory: 512Mi
               cpu: 300m
 
 ---

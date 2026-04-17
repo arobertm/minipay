@@ -26,6 +26,8 @@ spec:
               value: "8096"
             - name: TDS_BASE_URL
               value: "http://tds-svc:8096"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx200m -XX:+UseG1GC -XX:MaxMetaspaceSize=128m"
           startupProbe:
             httpGet:
               path: /actuator/health
@@ -49,10 +51,10 @@ spec:
             failureThreshold: 3
           resources:
             requests:
-              memory: 128Mi
+              memory: 256Mi
               cpu: 100m
             limits:
-              memory: 256Mi
+              memory: 512Mi
               cpu: 300m
 
 ---

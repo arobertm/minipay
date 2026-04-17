@@ -25,7 +25,6 @@ spec:
   tls:
     - hosts:
         - api-minipay.online
-      secretName: api-minipay-tls
   rules:
     - host: api-minipay.online
       http:

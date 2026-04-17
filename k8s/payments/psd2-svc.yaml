@@ -25,7 +25,7 @@ spec:
             - name: SERVER_PORT
               value: "8095"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms64m -Xmx200m -XX:+UseG1GC -XX:MaxMetaspaceSize=128m"
+              value: "-Xms64m -Xmx200m -XX:MaxMetaspaceSize=128m"
           startupProbe:
             httpGet:
               path: /actuator/health

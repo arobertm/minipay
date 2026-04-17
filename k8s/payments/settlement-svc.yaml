@@ -39,7 +39,7 @@ spec:
                   name: postgres-secret
                   key: password
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms64m -Xmx256m -XX:+UseG1GC -XX:MaxMetaspaceSize=128m"
+              value: "-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m"
           startupProbe:
             httpGet:
               path: /actuator/health

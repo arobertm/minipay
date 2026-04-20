@@ -95,6 +95,10 @@ public class SettlementService {
         return batches;
     }
 
+    public List<SettlementBatch> getAllBatches() {
+        return batchRepo.findAll();
+    }
+
     public List<SettlementBatch> getBatchesByDate(LocalDate date) {
         return batchRepo.findBySettlementDate(date);
     }

@@ -82,18 +82,16 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-2">
               {batchQ.data.slice(0, 6).map((b) => (
-                <div key={b.batchId} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                <div key={b.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
                   <div>
                     <p className="text-sm text-white/80">{b.settlementDate}</p>
-                    <p className="text-xs text-white/30">{b.recordCount} records · {b.currency}</p>
+                    <p className="text-xs text-white/30">{b.txnCount} txns · {b.currency}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">{b.totalAmount.toFixed(2)}</span>
-                    {b.status === "COMPLETED"
+                    <span className="text-sm font-semibold">{(b.netAmount / 100).toFixed(2)}</span>
+                    {b.status === "SETTLED"
                       ? <CheckCircle2 size={14} className="text-green-400" />
-                      : b.status === "FAILED"
-                      ? <XCircle size={14} className="text-red-400" />
-                      : <span className="text-xs text-yellow-400">PENDING</span>}
+                      : <span className="text-xs text-yellow-400">{b.status}</span>}
                   </div>
                 </div>
               ))}

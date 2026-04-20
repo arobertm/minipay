@@ -1,34 +1,44 @@
 import { api } from "./axios";
 
 export interface SettlementBatch {
-  batchId: string;
+  id: number;
+  merchantId: string;
   settlementDate: string;
-  totalAmount: number;
+  netAmount: number;
+  capturedAmount: number;
+  refundedAmount: number;
   currency: string;
-  recordCount: number;
-  status: "PENDING" | "COMPLETED" | "FAILED";
-  createdAt: string;
+  txnCount: number;
+  status: string;
+  reconciledAt: string;
 }
 
 export interface SettlementRecord {
-  recordId: string;
-  batchId: string;
-  transactionId: string;
+  id: number;
+  txnId: string;
+  merchantId: string;
   amount: number;
   currency: string;
-  status: string;
-  settledAt: string;
+  paymentStatus: string;
+  settlementDate: string;
+  createdAt: string;
+}
+
+export interface ReconcileResponse {
+  date: string;
+  batchesCreated: number;
+  batches: SettlementBatch[];
 }
 
 export const settlements = {
   batches: () =>
     api.get<SettlementBatch[]>("/settlements/batches").then((r) => r.data),
 
-  records: (batchId?: string) =>
+  records: (date?: string) =>
     api
-      .get<SettlementRecord[]>(`/settlements/records${batchId ? `?batchId=${batchId}` : ""}`)
+      .get<SettlementRecord[]>(`/settlements/records${date ? `?date=${date}` : ""}`)
       .then((r) => r.data),
 
-  reconcile: () =>
-    api.post<{ message: string; batchId?: string }>("/settlements/reconcile").then((r) => r.data),
+  reconcile: (date?: string) =>
+    api.post<ReconcileResponse>(`/settlements/reconcile${date ? `?date=${date}` : ""}`).then((r) => r.data),
 };

@@ -29,9 +29,12 @@ public class SettlementController {
     private final SettlementService settlementService;
 
     @GetMapping("/batches")
-    public ResponseEntity<List<SettlementBatch>> getBatchesByDate(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ResponseEntity.ok(settlementService.getBatchesByDate(date));
+    public ResponseEntity<List<SettlementBatch>> getBatches(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        if (date != null) {
+            return ResponseEntity.ok(settlementService.getBatchesByDate(date));
+        }
+        return ResponseEntity.ok(settlementService.getAllBatches());
     }
 
     @GetMapping("/batches/merchant/{merchantId}")

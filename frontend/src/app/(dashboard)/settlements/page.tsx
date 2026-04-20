@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { settlements, SettlementBatch } from "@/lib/api/settlements";
+import { settlements, SettlementBatch, SettlementRecord } from "@/lib/api/settlements";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,15 +21,15 @@ export default function SettlementsPage() {
 
   const batchQ = useQuery({ queryKey: ["batches"], queryFn: settlements.batches });
   const recordQ = useQuery({
-    queryKey: ["records", selected?.batchId],
-    queryFn: () => settlements.records(selected?.batchId),
+    queryKey: ["records", selected?.settlementDate],
+    queryFn: () => settlements.records(selected?.settlementDate),
     enabled: !!selected,
   });
 
   const reconcileMut = useMutation({
     mutationFn: settlements.reconcile,
     onSuccess: (data) => {
-      toast.success(data.message ?? "Reconciliation complete");
+      toast.success(`Reconciliation complete — ${data.batchesCreated} batch(es) for ${data.date}`);
       qc.invalidateQueries({ queryKey: ["batches"] });
     },
     onError: () => toast.error("Reconciliation failed"),
@@ -44,7 +44,7 @@ export default function SettlementsPage() {
         </div>
         <Button
           className="bg-blue-600 hover:bg-blue-700"
-          onClick={() => reconcileMut.mutate()}
+          onClick={() => reconcileMut.mutate(undefined)}
           disabled={reconcileMut.isPending}
         >
           {reconcileMut.isPending ? <><Loader2 size={16} className="animate-spin mr-2" />Reconciling…</> : <><RefreshCw size={16} className="mr-2" />Run Reconciliation</>}
@@ -65,18 +65,18 @@ export default function SettlementsPage() {
             <div className="divide-y divide-white/5">
               {batchQ.data.map((b) => (
                 <button
-                  key={b.batchId}
+                  key={b.id}
                   onClick={() => setSelected(b)}
-                  className={`w-full text-left px-5 py-4 hover:bg-white/3 transition-colors ${selected?.batchId === b.batchId ? "bg-blue-600/10" : ""}`}
+                  className={`w-full text-left px-5 py-4 hover:bg-white/3 transition-colors ${selected?.id === b.id ? "bg-blue-600/10" : ""}`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium">{b.settlementDate}</p>
-                      <p className="text-xs text-white/40 mt-0.5">{b.recordCount} records · {b.currency}</p>
+                      <p className="text-xs text-white/40 mt-0.5">{b.txnCount} txns · {b.merchantId} · {b.currency}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-semibold">{b.totalAmount.toFixed(2)}</span>
-                      <Badge className={BATCH_STYLE[b.status]}>{b.status}</Badge>
+                      <span className="font-semibold">{(b.netAmount / 100).toFixed(2)}</span>
+                      <Badge className={BATCH_STYLE[b.status] ?? "bg-white/10 text-white/50"}>{b.status}</Badge>
                     </div>
                   </div>
                 </button>
@@ -104,11 +104,14 @@ export default function SettlementsPage() {
           ) : (
             <div className="divide-y divide-white/5">
               {recordQ.data.map((r) => (
-                <div key={r.recordId} className="px-5 py-3 flex items-center justify-between">
-                  <p className="font-mono text-xs text-white/50">{r.transactionId?.slice(0, 18)}…</p>
+                <div key={r.id} className="px-5 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="font-mono text-xs text-white/50">{r.txnId?.slice(0, 18)}…</p>
+                    <p className="text-xs text-white/30">{r.paymentStatus}</p>
+                  </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm">{r.amount} {r.currency}</span>
-                    {r.status === "SETTLED" ? <CheckCircle2 size={14} className="text-green-400" /> : <XCircle size={14} className="text-red-400" />}
+                    <span className="text-sm">{(r.amount / 100).toFixed(2)} {r.currency}</span>
+                    {r.paymentStatus === "CAPTURED" ? <CheckCircle2 size={14} className="text-green-400" /> : <XCircle size={14} className="text-purple-400" />}
                   </div>
                 </div>
               ))}

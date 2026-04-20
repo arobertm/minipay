@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: settlement-svc
-          image: ghcr.io/arobertm/minipay/settlement-svc:908fc4337a3488e097c8969ff6f465a4b42d4fb2
+          image: ghcr.io/arobertm/minipay/settlement-svc:2bd973418df77ffec529cf7e757cb91fef55f10e
           imagePullPolicy: Always
           ports:
             - name: http

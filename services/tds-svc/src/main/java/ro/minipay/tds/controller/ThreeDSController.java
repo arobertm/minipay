@@ -14,12 +14,12 @@ import java.util.Optional;
 /**
  * 3DS2 ACS (Access Control Server) REST endpoints.
  *
- * POST /3ds2/authenticate            — initiate authentication (called by gateway)
- * GET  /3ds2/challenge/{acsTransId}  — get challenge session (for the browser challenge page)
- * POST /3ds2/challenge/{acsTransId}  — submit OTP
+ * POST /tds/authenticate            — initiate authentication
+ * GET  /tds/challenge/{acsTransId}  — get challenge session
+ * POST /tds/challenge/{acsTransId}  — submit OTP
  */
 @RestController
-@RequestMapping("/3ds2")
+@RequestMapping("/tds")
 @RequiredArgsConstructor
 public class ThreeDSController {
 

@@ -1,14 +1,14 @@
 ---
-# Traefik Ingress — k3s bundles Traefik as the default ingress controller.
-# All routes use path-based routing on the server's public IP (no DNS required).
+# Traefik Ingress — MiniPay
 #
-# Access pattern (replace <SERVER_IP> with your DigitalOcean droplet IP):
-#   http://<SERVER_IP>/api/...      → gateway-svc  (main payment API)
-#   http://<SERVER_IP>/auth/...     → auth-svc      (OAuth2/OIDC)
-#   http://<SERVER_IP>/users/...    → user-svc
-#   http://<SERVER_IP>/grafana/...  → Grafana dashboards
-#   http://<SERVER_IP>/kafka/       → Kafka UI
-#   http://<SERVER_IP>/minids/...   → MiniDS REST (debug)
+# Strip rules:
+#   /api   → strip (controller uses /v1/payments)
+#   /auth  → strip (Spring AuthServer has no /auth prefix)
+#   /users → strip (pattern: /users/users/X → strip → /users/X → controller /users/{X})
+#   /notif → strip (controller uses /notifications, not /notif)
+#
+# NO strip for: /settlements, /psd2, /tds, /audit, /vault, /fraud
+#   (controllers already have their own prefix matching the path)
 
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -16,9 +16,7 @@ metadata:
   name: minipay-ingress
   namespace: minipay
   annotations:
-    # Strip path prefixes before forwarding
-    # Excluded: minids (serves at /minids/v1/), kafka-ui (context path set via SERVER_SERVLET_CONTEXT_PATH)
-    traefik.ingress.kubernetes.io/router.middlewares: minipay-cors@kubernetescrd,minipay-strip-api@kubernetescrd,minipay-strip-auth@kubernetescrd,minipay-strip-users@kubernetescrd,minipay-strip-notif@kubernetescrd,minipay-strip-psd2@kubernetescrd,minipay-strip-tds@kubernetescrd,minipay-strip-settlements@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: minipay-cors@kubernetescrd,minipay-strip-api@kubernetescrd,minipay-strip-auth@kubernetescrd,minipay-strip-users@kubernetescrd,minipay-strip-notif@kubernetescrd
     traefik.ingress.kubernetes.io/router.tls.certresolver: "letsencrypt"
 spec:
   ingressClassName: traefik
@@ -50,13 +48,6 @@ spec:
                 name: user-svc
                 port:
                   number: 8082
-          - path: /minids
-            pathType: Prefix
-            backend:
-              service:
-                name: minids-api
-                port:
-                  number: 8301
           - path: /notif
             pathType: Prefix
             backend:
@@ -64,6 +55,13 @@ spec:
                 name: notif-svc
                 port:
                   number: 8093
+          - path: /settlements
+            pathType: Prefix
+            backend:
+              service:
+                name: settlement-svc
+                port:
+                  number: 8094
           - path: /psd2
             pathType: Prefix
             backend:
@@ -78,13 +76,34 @@ spec:
                 name: tds-svc
                 port:
                   number: 8096
-          - path: /settlements
+          - path: /audit
             pathType: Prefix
             backend:
               service:
-                name: settlement-svc
+                name: audit-svc
                 port:
-                  number: 8094
+                  number: 8091
+          - path: /vault
+            pathType: Prefix
+            backend:
+              service:
+                name: vault-svc
+                port:
+                  number: 8085
+          - path: /fraud
+            pathType: Prefix
+            backend:
+              service:
+                name: fraud-svc
+                port:
+                  number: 8090
+          - path: /minids
+            pathType: Prefix
+            backend:
+              service:
+                name: minids-api
+                port:
+                  number: 8301
           - path: /grafana
             pathType: Prefix
             backend:
@@ -94,7 +113,7 @@ spec:
                   number: 3000
 
 ---
-# CORS middleware — allows browser requests from localhost (dev) and Vercel (prod)
+# CORS middleware
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -126,7 +145,6 @@ spec:
     addVaryHeader: true
 
 ---
-# Middleware: strip /api prefix before forwarding to gateway-svc
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -138,7 +156,6 @@ spec:
       - /api
 
 ---
-# Middleware: strip /auth prefix before forwarding to auth-svc
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -150,7 +167,6 @@ spec:
       - /auth
 
 ---
-# Middleware: strip /users prefix before forwarding to user-svc
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -171,37 +187,3 @@ spec:
   stripPrefix:
     prefixes:
       - /notif
-
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: strip-psd2
-  namespace: minipay
-spec:
-  stripPrefix:
-    prefixes:
-      - /psd2
-
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: strip-tds
-  namespace: minipay
-spec:
-  stripPrefix:
-    prefixes:
-      - /tds
-
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: strip-settlements
-  namespace: minipay
-spec:
-  stripPrefix:
-    prefixes:
-      - /settlements
-

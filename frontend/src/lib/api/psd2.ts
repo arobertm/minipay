@@ -37,8 +37,8 @@ export const psd2 = {
     api.get(`/psd2/accounts/${accountId}/transactions?consentId=${consentId}`).then((r) => r.data),
 
   initiateSepa: (body: SepaPaymentRequest) =>
-    api.post<{ paymentId: string; status: string }>("/psd2/payments/sepa-credit-transfer", body).then((r) => r.data),
+    api.post<{ paymentId: string; status: string }>("/psd2/payments/sepa-credit-transfers", body).then((r) => r.data),
 
   getPaymentStatus: (paymentId: string) =>
-    api.get<{ paymentId: string; status: string }>(`/psd2/payments/${paymentId}/status`).then((r) => r.data),
+    api.get<{ paymentId: string; status: string }>(`/psd2/payments/sepa-credit-transfers/${paymentId}`).then((r) => r.data),
 };

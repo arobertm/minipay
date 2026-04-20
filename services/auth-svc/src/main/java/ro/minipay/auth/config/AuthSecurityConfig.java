@@ -11,6 +11,10 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.List;
 /**
  * Spring Authorization Server security configuration.
  *
@@ -28,14 +32,30 @@ public class AuthSecurityConfig {
 
     private final JwtDecoder jwtDecoder;
 
-    /**
-     * Authorization server security filter chain.
-     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(List.of(
+            "http://localhost:*",
+            "https://*.vercel.app",
+            "https://minipay.vercel.app"
+        ));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
+
     @Bean
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
 
         http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .exceptionHandling(exceptions ->
                 exceptions.authenticationEntryPoint(
                     new LoginUrlAuthenticationEntryPoint("/login")
@@ -48,12 +68,10 @@ public class AuthSecurityConfig {
         return http.build();
     }
 
-    /**
-     * Default security filter chain.
-     */
     @Bean
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(authorize ->
                 authorize
                     .requestMatchers(
@@ -66,6 +84,7 @@ public class AuthSecurityConfig {
             )
             .csrf(csrf -> csrf
                 .ignoringRequestMatchers(
+                    "/oauth2/token",
                     "/auth/token/pqc", "/auth/token/pqc/verify"
                 )
             )

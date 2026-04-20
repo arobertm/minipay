@@ -25,7 +25,6 @@ public class MiniDSRegisteredClientRepository implements RegisteredClientReposit
     private final Map<String, RegisteredClient> byClientId = new ConcurrentHashMap<>();
 
     public MiniDSRegisteredClientRepository(PasswordEncoder passwordEncoder) {
-        // Demo client for gateway, Postman, and E2E testing
         RegisteredClient demoClient = RegisteredClient.withId("demo-client-id")
                 .clientId("demo-client")
                 .clientSecret(passwordEncoder.encode("demo-secret"))
@@ -38,8 +37,23 @@ public class MiniDSRegisteredClientRepository implements RegisteredClientReposit
                         .build())
                 .build();
 
+        RegisteredClient dashboardClient = RegisteredClient.withId("minipay-dashboard-id")
+                .clientId("minipay-dashboard")
+                .clientSecret(passwordEncoder.encode("minipay-dashboard-secret"))
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                .scope("openid")
+                .scope("payments:read")
+                .scope("payments:write")
+                .tokenSettings(TokenSettings.builder()
+                        .accessTokenTimeToLive(Duration.ofHours(8))
+                        .build())
+                .build();
+
         register(demoClient);
-        log.info("Registered demo OAuth2 client: demo-client");
+        register(dashboardClient);
+        log.info("Registered OAuth2 clients: demo-client, minipay-dashboard");
     }
 
     private void register(RegisteredClient client) {

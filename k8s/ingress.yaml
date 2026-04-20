@@ -18,7 +18,7 @@ metadata:
   annotations:
     # Strip path prefixes before forwarding
     # Excluded: minids (serves at /minids/v1/), kafka-ui (context path set via SERVER_SERVLET_CONTEXT_PATH)
-    traefik.ingress.kubernetes.io/router.middlewares: minipay-strip-api@kubernetescrd,minipay-strip-auth@kubernetescrd,minipay-strip-users@kubernetescrd,minipay-strip-notif@kubernetescrd,minipay-strip-psd2@kubernetescrd,minipay-strip-tds@kubernetescrd,minipay-strip-settlements@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: minipay-cors@kubernetescrd,minipay-strip-api@kubernetescrd,minipay-strip-auth@kubernetescrd,minipay-strip-users@kubernetescrd,minipay-strip-notif@kubernetescrd,minipay-strip-psd2@kubernetescrd,minipay-strip-tds@kubernetescrd,minipay-strip-settlements@kubernetescrd
     traefik.ingress.kubernetes.io/router.tls.certresolver: "letsencrypt"
 spec:
   ingressClassName: traefik
@@ -92,6 +92,38 @@ spec:
                 name: grafana
                 port:
                   number: 3000
+
+---
+# CORS middleware — allows browser requests from localhost (dev) and Vercel (prod)
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cors
+  namespace: minipay
+spec:
+  headers:
+    accessControlAllowOriginList:
+      - "http://localhost:3000"
+      - "http://localhost:3001"
+      - "https://minipay.vercel.app"
+      - "https://*.vercel.app"
+    accessControlAllowMethods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+      - PATCH
+    accessControlAllowHeaders:
+      - "Authorization"
+      - "Content-Type"
+      - "Accept"
+      - "Origin"
+      - "X-Requested-With"
+    accessControlExposeHeaders:
+      - "Content-Length"
+    accessControlMaxAge: 3600
+    addVaryHeader: true
 
 ---
 # Middleware: strip /api prefix before forwarding to gateway-svc

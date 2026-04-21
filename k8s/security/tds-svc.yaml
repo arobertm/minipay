@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: tds-svc
-          image: ghcr.io/arobertm/minipay/tds-svc:10333c9ba2da00e291bbec15a40d1a5e2a9c5302
+          image: ghcr.io/arobertm/minipay/tds-svc:da67c72c23779cbf251d10ab70ffc3fabca4e2a2
           imagePullPolicy: Always
           ports:
             - name: http

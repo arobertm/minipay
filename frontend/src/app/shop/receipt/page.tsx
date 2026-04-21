@@ -16,6 +16,8 @@ function ReceiptContent() {
   const fraud = parseFloat(sp.get("fraud") ?? "0");
 
   const ok = status === "AUTHORIZED" || status === "CAPTURED";
+  // amount comes from gateway in cents — convert to display
+  const displayAmount = (parseFloat(amount) / 100).toFixed(2);
 
   return (
     <div className="min-h-screen bg-[#0f1117] text-white flex items-center justify-center px-4">
@@ -38,7 +40,7 @@ function ReceiptContent() {
             <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3 text-left">
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Amount</span>
-                <span className="font-bold text-lg">{amount} {currency}</span>
+                <span className="font-bold text-lg">{displayAmount} {currency}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Status</span>

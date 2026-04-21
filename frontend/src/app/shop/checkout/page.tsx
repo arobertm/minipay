@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { gateway } from "@/lib/api/gateway";
-import { vault } from "@/lib/api/vault";
+import { gateway, toCents } from "@/lib/api/gateway";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -36,26 +35,21 @@ export default function CheckoutPage() {
   const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
 
   const checkoutMut = useMutation({
-    mutationFn: async () => {
-      // Step 1: tokenize PAN
-      const { dpan } = await vault.tokenize({ pan: cardForm.pan, expiry: cardForm.expiry, cvv: cardForm.cvv });
-
-      // Step 2: authorize payment with DPAN
-      return gateway.authorize({
-        dpan,
-        expiry: cardForm.expiry,
+    mutationFn: () =>
+      // Gateway tokenizes PAN internally via vault-svc — send PAN directly
+      gateway.authorize({
+        pan: cardForm.pan,
+        expiryDate: cardForm.expiry,
         cvv: cardForm.cvv,
-        amount: parseFloat(total.toFixed(2)),
+        amount: toCents(total),          // convert to cents
         currency: "EUR",
         merchantId: "DEMO-SHOP-001",
-        merchantName: "MiniPay Demo Shop",
-        merchantCountry: "RO",
-        merchantCategory: "5734",
-      });
-    },
+        orderId: `SHOP-${Date.now()}`,
+        description: `Demo Shop — ${cart.length} item(s)`,
+      }),
     onSuccess: (data) => {
       localStorage.removeItem("mp_cart");
-      router.push(`/shop/receipt?txnId=${data.transactionId}&status=${data.status}&amount=${data.amount}&currency=${data.currency}&fraud=${data.fraudScore ?? 0}`);
+      router.push(`/shop/receipt?txnId=${data.txnId}&status=${data.status}&amount=${data.amount}&currency=${data.currency}&fraud=${data.fraudScore ?? 0}`);
     },
     onError: () => {
       toast.error("Payment failed — please try again");

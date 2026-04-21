@@ -1,6 +1,5 @@
 import axios from "axios";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://api-minipay.online";
 const CLIENT_ID = process.env.NEXT_PUBLIC_AUTH_CLIENT_ID ?? "minipay-dashboard";
 
 export async function getClientToken(): Promise<string> {
@@ -11,7 +10,8 @@ export async function getClientToken(): Promise<string> {
     scope: "openid",
   });
 
-  const { data } = await axios.post(`${BASE}/auth/oauth2/token`, params, {
+  // Goes through Next.js proxy → no CORS
+  const { data } = await axios.post("/api/proxy/auth/oauth2/token", params, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
 

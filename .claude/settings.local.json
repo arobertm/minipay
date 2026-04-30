@@ -100,7 +100,19 @@
       "Bash(while read:*)",
       "Bash(do wc:*)",
       "Bash(done)",
-      "Read(//c/disertatie-master/**)"
+      "Read(//c/disertatie-master/**)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(i['name'],'-',i.get\\('request',{}\\).get\\('method',''\\),i.get\\('request',{}\\).get\\('url',{}\\).get\\('raw',''\\)\\) for i in d.get\\('item',[]\\)]\")",
+      "Bash(python3 *)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git)",
+      "Bash(mv frontend/FRONTEND-PLAN.md /tmp/FRONTEND-PLAN.md)",
+      "Bash(rmdir frontend/src)",
+      "Bash(npm install *)",
+      "Bash(npx shadcn@latest init --defaults)",
+      "Bash(npx shadcn@latest add card input label badge table tabs toast select textarea separator skeleton)",
+      "Bash(npx shadcn@latest add card input label badge table tabs sonner select textarea separator skeleton dialog alert)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(xargs -I {} bash -c 'echo \"=== {} ===\" && head -30 {}')"
     ]
   }
 }

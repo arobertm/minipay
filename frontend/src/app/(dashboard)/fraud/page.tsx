@@ -23,38 +23,48 @@ import {
 
 function ScoreMeter({ score }: { score: number }) {
   const pct = Math.round(score * 100);
-  const color = score < 0.3 ? "#10b981" : score < 0.7 ? "#f59e0b" : "#ef4444";
-  const Icon = score < 0.3 ? ShieldCheck : score < 0.7 ? ShieldAlert : ShieldX;
-  const label = score < 0.3 ? "LOW RISK" : score < 0.7 ? "MEDIUM RISK" : "HIGH RISK";
+  const color = score < 0.5 ? "#10b981" : score < 0.8 ? "#f59e0b" : "#ef4444";
+  const Icon = score < 0.5 ? ShieldCheck : score < 0.8 ? ShieldAlert : ShieldX;
+  const label = score < 0.5 ? "LOW RISK" : score < 0.8 ? "MEDIUM RISK" : "HIGH RISK";
 
   return (
     <div className="flex flex-col items-center gap-3">
       <Icon size={48} style={{ color }} />
-      <div className="text-5xl font-bold" style={{ color }}>{pct}<span className="text-2xl">%</span></div>
-      <Badge style={{ backgroundColor: `${color}20`, color, borderColor: `${color}40` }}>{label}</Badge>
+      <div className="text-5xl font-bold" style={{ color }}>
+        {pct}<span className="text-2xl">%</span>
+      </div>
+      <Badge style={{ backgroundColor: `${color}20`, color, borderColor: `${color}40` }}>
+        {label}
+      </Badge>
       <div className="w-full h-2 rounded-full bg-white/10 mt-1">
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, backgroundColor: color }}
+        />
       </div>
     </div>
   );
 }
 
-function ShapChart({ shapValues }: { shapValues: Record<string, number> }) {
-  const data = Object.entries(shapValues)
-    .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(4)) }))
-    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
-    .slice(0, 10);
+function ShapChart({ shapDetails }: { shapDetails: FraudResponse["shap_details"] }) {
+  const data = [...shapDetails]
+    .sort((a, b) => Math.abs(b.shap_value) - Math.abs(a.shap_value))
+    .slice(0, 10)
+    .map((d) => ({ name: d.feature, value: parseFloat(d.shap_value.toFixed(4)), description: d.description }));
 
   return (
     <ResponsiveContainer width="100%" height={280}>
       <BarChart data={data} layout="vertical" margin={{ left: 20, right: 30 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" />
         <XAxis type="number" tick={{ fill: "#ffffff50", fontSize: 11 }} tickLine={false} axisLine={false} />
-        <YAxis type="category" dataKey="name" tick={{ fill: "#ffffff80", fontSize: 11 }} width={110} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="name" tick={{ fill: "#ffffff80", fontSize: 11 }} width={130} tickLine={false} axisLine={false} />
         <Tooltip
           contentStyle={{ backgroundColor: "#1a1d27", border: "1px solid #ffffff15", borderRadius: 8 }}
           labelStyle={{ color: "#fff" }}
-          formatter={(v) => [(v as number).toFixed(4), "SHAP value"]}
+          formatter={(v, _name, props) => [
+            `${(v as number).toFixed(4)}`,
+            props.payload?.description ?? "SHAP value",
+          ]}
         />
         <ReferenceLine x={0} stroke="#ffffff30" />
         <Bar dataKey="value" radius={[0, 4, 4, 0]}>
@@ -68,21 +78,18 @@ function ShapChart({ shapValues }: { shapValues: Record<string, number> }) {
 }
 
 const DECISION_STYLE = {
-  APPROVE: "bg-green-500/20 text-green-400 border-green-500/30",
-  REVIEW: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  DECLINE: "bg-red-500/20 text-red-400 border-red-500/30",
+  ALLOW:     "bg-green-500/20 text-green-400 border-green-500/30",
+  CHALLENGE: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  BLOCK:     "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
 export default function FraudPage() {
   const [form, setForm] = useState<FraudRequest>({
-    amount: 250,
-    currency: "EUR",
-    merchantCountry: "RO",
-    cardType: "VISA",
-    hour: 14,
-    dayOfWeek: 3,
-    isInternational: false,
-    previousFraudCount: 0,
+    dpan:       "4111110000001234",
+    amount:     25000,
+    currency:   "RON",
+    merchantId: "merchant-001",
+    ipAddress:  "192.168.1.100",
   });
   const [result, setResult] = useState<FraudResponse | null>(null);
 
@@ -90,59 +97,45 @@ export default function FraudPage() {
     mutationFn: () => fraud.score(form),
     onSuccess: (data) => {
       setResult(data);
-      toast.success(`Fraud scored: ${(data.fraudScore * 100).toFixed(1)}% — ${data.decision}`);
+      toast.success(`Fraud scored: ${(data.score * 100).toFixed(1)}% — ${data.decision}`);
     },
     onError: () => toast.error("Fraud scoring failed"),
   });
 
-  const f = (key: keyof FraudRequest, value: unknown) => setForm((prev) => ({ ...prev, [key]: value }));
+  const f = (key: keyof FraudRequest, value: unknown) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Fraud Detection</h1>
-        <p className="text-white/40 text-sm mt-1">XGBoost model with SHAP explainability</p>
+        <p className="text-white/40 text-sm mt-1">XGBoost model · SHAP explainability (GDPR Art.22)</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Form */}
         <div className="rounded-xl border border-white/10 bg-[#1a1d27] p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Transaction Features</h2>
+          <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Transaction</h2>
           <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-1.5">
+              <Label>DPAN</Label>
+              <Input value={form.dpan} onChange={(e) => f("dpan", e.target.value)} className="bg-white/5 border-white/10 font-mono" />
+            </div>
             <div className="space-y-1.5">
-              <Label>Amount</Label>
-              <Input type="number" value={form.amount} onChange={(e) => f("amount", parseFloat(e.target.value))} className="bg-white/5 border-white/10" />
+              <Label>Amount (cenți)</Label>
+              <Input type="number" value={form.amount} onChange={(e) => f("amount", parseInt(e.target.value))} className="bg-white/5 border-white/10" />
             </div>
             <div className="space-y-1.5">
               <Label>Currency</Label>
               <Input value={form.currency} onChange={(e) => f("currency", e.target.value)} className="bg-white/5 border-white/10" />
             </div>
             <div className="space-y-1.5">
-              <Label>Merchant Country</Label>
-              <Input value={form.merchantCountry} onChange={(e) => f("merchantCountry", e.target.value)} className="bg-white/5 border-white/10" />
+              <Label>Merchant ID</Label>
+              <Input value={form.merchantId} onChange={(e) => f("merchantId", e.target.value)} className="bg-white/5 border-white/10" />
             </div>
             <div className="space-y-1.5">
-              <Label>Card Type</Label>
-              <Input value={form.cardType} onChange={(e) => f("cardType", e.target.value)} className="bg-white/5 border-white/10" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Hour of Day (0-23)</Label>
-              <Input type="number" min={0} max={23} value={form.hour} onChange={(e) => f("hour", parseInt(e.target.value))} className="bg-white/5 border-white/10" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Day of Week (1=Mon)</Label>
-              <Input type="number" min={1} max={7} value={form.dayOfWeek} onChange={(e) => f("dayOfWeek", parseInt(e.target.value))} className="bg-white/5 border-white/10" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>International?</Label>
-              <div className="flex items-center gap-2 h-10">
-                <input type="checkbox" checked={form.isInternational} onChange={(e) => f("isInternational", e.target.checked)} className="w-4 h-4" />
-                <span className="text-sm text-white/60">Cross-border transaction</span>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Previous Fraud Count</Label>
-              <Input type="number" min={0} value={form.previousFraudCount} onChange={(e) => f("previousFraudCount", parseInt(e.target.value))} className="bg-white/5 border-white/10" />
+              <Label>IP Address</Label>
+              <Input value={form.ipAddress} onChange={(e) => f("ipAddress", e.target.value)} className="bg-white/5 border-white/10" />
             </div>
           </div>
           <Button
@@ -150,14 +143,17 @@ export default function FraudPage() {
             onClick={() => scoreMut.mutate()}
             disabled={scoreMut.isPending}
           >
-            {scoreMut.isPending ? <><Loader2 size={16} className="animate-spin mr-2" />Scoring…</> : "Run Fraud Score"}
+            {scoreMut.isPending ? (
+              <><Loader2 size={16} className="animate-spin mr-2" />Scoring…</>
+            ) : (
+              "Run Fraud Score"
+            )}
           </Button>
         </div>
 
         {/* Result */}
         <div className="rounded-xl border border-white/10 bg-[#1a1d27] p-6 space-y-6">
           <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Result</h2>
-
           {!result ? (
             <div className="flex flex-col items-center justify-center h-48 text-white/20">
               <ShieldAlert size={40} className="mb-3" />
@@ -165,15 +161,19 @@ export default function FraudPage() {
             </div>
           ) : (
             <>
-              <ScoreMeter score={result.fraudScore} />
+              <ScoreMeter score={result.score} />
               <div className="flex items-center justify-between border-t border-white/5 pt-4">
                 <span className="text-sm text-white/50">Decision</span>
                 <Badge className={DECISION_STYLE[result.decision]}>{result.decision}</Badge>
               </div>
-              {result.processingTimeMs != null && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-white/50">Processing time</span>
-                  <span className="text-sm text-white/70">{result.processingTimeMs} ms</span>
+              {result.reasons.length > 0 && (
+                <div className="space-y-1.5 border-t border-white/5 pt-4">
+                  <span className="text-xs text-white/40 uppercase tracking-wider">Reasons (GDPR Art.22)</span>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {result.reasons.map((r) => (
+                      <span key={r} className="text-xs px-2 py-0.5 rounded bg-white/5 text-white/60 border border-white/10">{r}</span>
+                    ))}
+                  </div>
                 </div>
               )}
             </>
@@ -182,13 +182,15 @@ export default function FraudPage() {
       </div>
 
       {/* SHAP Explanation */}
-      {result && Object.keys(result.shapValues).length > 0 && (
+      {result && result.shap_details.length > 0 && (
         <div className="rounded-xl border border-white/10 bg-[#1a1d27] p-6">
-          <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-2">SHAP Feature Contributions</h2>
+          <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-2">
+            SHAP Feature Contributions
+          </h2>
           <p className="text-xs text-white/30 mb-5">
             Red bars increase fraud risk · Green bars decrease fraud risk · Sorted by absolute impact
           </p>
-          <ShapChart shapValues={result.shapValues} />
+          <ShapChart shapDetails={result.shap_details} />
         </div>
       )}
     </div>

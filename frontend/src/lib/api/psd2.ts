@@ -1,17 +1,19 @@
 import { api } from "./axios";
 
-export interface Account {
+export interface AccountBalance {
   accountId: string;
   iban: string;
   currency: string;
-  ownerName: string;
+  closingBookedBalance: number;
+  availableBalance: number;
+  balanceType: string;
 }
 
-export interface Balance {
-  amount: number;
-  currency: string;
-  type: string;
-  referenceDate?: string;
+export interface Consent {
+  consentId: string;
+  status: string;
+  permissions: string[];
+  validUntil: string;
 }
 
 export interface SepaPaymentRequest {
@@ -23,22 +25,43 @@ export interface SepaPaymentRequest {
   reference: string;
 }
 
+const consentHeader = (consentId: string) => ({ "Consent-ID": consentId });
+
 export const psd2 = {
-  createConsent: (userId: string, ibans: string[]) =>
-    api.post<{ consentId: string; status: string }>("/psd2/consents", { userId, ibans }).then((r) => r.data),
+  createConsent: (psuId: string, accountIds: string[], permissions: string[], validUntil: string) =>
+    api
+      .post<Consent>("/psd2/consents", { psuId, accountIds, permissions, validUntil })
+      .then((r) => r.data),
+
+  getConsent: (consentId: string) =>
+    api.get<Consent>(`/psd2/consents/${consentId}`).then((r) => r.data),
+
+  revokeConsent: (consentId: string) =>
+    api.delete<{ consentId: string; status: string }>(`/psd2/consents/${consentId}`).then((r) => r.data),
 
   getAccounts: (consentId: string) =>
-    api.get<Account[]>(`/psd2/accounts?consentId=${consentId}`).then((r) => r.data),
+    api
+      .get<{ accounts: AccountBalance[] }>("/psd2/accounts", {
+        headers: consentHeader(consentId),
+      })
+      .then((r) => r.data.accounts),
 
   getBalances: (accountId: string, consentId: string) =>
-    api.get<Balance[]>(`/psd2/accounts/${accountId}/balances?consentId=${consentId}`).then((r) => r.data),
+    api
+      .get<{ balances: AccountBalance[] }>(`/psd2/accounts/${accountId}/balances`, {
+        headers: consentHeader(consentId),
+      })
+      .then((r) => r.data.balances),
 
   getTransactions: (accountId: string, consentId: string) =>
-    api.get(`/psd2/accounts/${accountId}/transactions?consentId=${consentId}`).then((r) => r.data),
+    api
+      .get(`/psd2/accounts/${accountId}/transactions`, {
+        headers: consentHeader(consentId),
+      })
+      .then((r) => r.data),
 
   initiateSepa: (body: SepaPaymentRequest) =>
-    api.post<{ paymentId: string; status: string }>("/psd2/payments/sepa-credit-transfers", body).then((r) => r.data),
-
-  getPaymentStatus: (paymentId: string) =>
-    api.get<{ paymentId: string; status: string }>(`/psd2/payments/sepa-credit-transfers/${paymentId}`).then((r) => r.data),
+    api
+      .post<{ paymentId: string; status: string }>("/psd2/payments/sepa-credit-transfers", body)
+      .then((r) => r.data),
 };

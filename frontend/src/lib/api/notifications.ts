@@ -1,17 +1,19 @@
 import { api } from "./axios";
 
 export interface Notification {
-  id: string;
-  transactionId: string;
-  channel: "SMS" | "EMAIL" | "PUSH";
+  txnId: string;
+  paymentStatus: string;
+  channel: string;
+  subject: string;
   message: string;
-  fraudScore?: number;
-  sentAt: string;
+  notifStatus: string;
+  createdAt: string;
 }
 
 export interface NotifStats {
   total: number;
   byChannel: Record<string, number>;
+  byPaymentStatus: Record<string, number>;
 }
 
 export const notifications = {
@@ -19,7 +21,7 @@ export const notifications = {
     api.get<Notification[]>("/notif/notifications").then((r) => r.data),
 
   getByTxn: (txnId: string) =>
-    api.get<Notification>(`/notif/notifications/${txnId}`).then((r) => r.data),
+    api.get<Notification[]>(`/notif/notifications/${txnId}`).then((r) => r.data),
 
   stats: () =>
     api.get<NotifStats>("/notif/notifications/stats").then((r) => r.data),

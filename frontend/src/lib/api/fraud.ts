@@ -1,22 +1,24 @@
 import { api } from "./axios";
 
+export interface ShapDetail {
+  feature: string;
+  shap_value: number;
+  description: string;
+}
+
 export interface FraudRequest {
-  transactionId?: string;
-  amount: number;
+  dpan: string;
+  amount: number;        // în cenți
   currency: string;
-  merchantCountry: string;
-  cardType: string;
-  hour: number;
-  dayOfWeek: number;
-  isInternational?: boolean;
-  previousFraudCount?: number;
+  merchantId: string;
+  ipAddress?: string;
 }
 
 export interface FraudResponse {
-  fraudScore: number;
-  decision: "APPROVE" | "REVIEW" | "DECLINE";
-  shapValues: Record<string, number>;
-  processingTimeMs?: number;
+  score: number;
+  decision: "ALLOW" | "CHALLENGE" | "BLOCK";
+  reasons: string[];
+  shap_details: ShapDetail[];
 }
 
 export const fraud = {

@@ -1,0 +1,1142 @@
+{
+  "info": {
+    "name": "MiniPay E2E — api-minipay.online",
+    "description": "Colecție completă E2E pentru platforma MiniPay. Acoperă autentificare OAuth2 + PQC Dilithium3, plăți (authorize/capture/refund), fraud XGBoost+SHAP, vault AES-256-GCM, 3DS2, audit Merkle, settlement, PSD2, notificări.\n\nSetup: rulează '🔐 Auth / Get Token' primul — toate celelalte request-uri folosesc {{token}} din variabilele de colecție.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl",    "value": "https://api-minipay.online", "type": "string" },
+    { "key": "token",      "value": "", "type": "string" },
+    { "key": "txnId",      "value": "", "type": "string" },
+    { "key": "dpan",       "value": "", "type": "string" },
+    { "key": "consentId",  "value": "", "type": "string" },
+    { "key": "acsTransID", "value": "", "type": "string" },
+    { "key": "pqcToken",   "value": "", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "🔐 Authentication",
+      "item": [
+        {
+          "name": "Get Token (client_credentials)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Has access_token', () => pm.expect(body.access_token).to.be.a('string'));",
+                  "pm.test('Token type is bearer', () => pm.expect(body.token_type.toLowerCase()).to.eql('bearer'));",
+                  "pm.collectionVariables.set('token', body.access_token);",
+                  "console.log('✅ Token salvat în variabila de colecție');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "demo-client" },
+                { "key": "password", "value": "demo-secret" }
+              ]
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "client_credentials" },
+                { "key": "scope",      "value": "payments:read payments:write" }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/auth/oauth2/token", "host": ["{{baseUrl}}"], "path": ["auth","oauth2","token"] }
+          }
+        },
+        {
+          "name": "Get JWKS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const keys = pm.response.json().keys;",
+                  "pm.test('At least 1 key', () => pm.expect(keys.length).to.be.gte(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/auth/oauth2/jwks", "host": ["{{baseUrl}}"], "path": ["auth","oauth2","jwks"] }
+          }
+        },
+        {
+          "name": "Get PQC Token (Dilithium3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Algorithm is DILITHIUM3', () => pm.expect(body.algorithm).to.eql('DILITHIUM3'));",
+                  "pm.test('NIST Level 3', () => pm.expect(body.nist_level).to.eql(3));",
+                  "pm.test('Has access_token', () => pm.expect(body.access_token).to.be.a('string'));",
+                  "pm.collectionVariables.set('pqcToken', body.access_token);",
+                  "",
+                  "// Verifică dimensiunea semnăturii Dilithium3",
+                  "const parts = body.access_token.split('.');",
+                  "const sigLen = Math.floor(parts[2].length * 3 / 4);",
+                  "pm.test('Semnătură ~3309 bytes (NIST FIPS 204)', () => pm.expect(sigLen).to.be.closeTo(3309, 20));",
+                  "console.log('Dimensiune semnătură Dilithium3:', sigLen, 'bytes');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/auth/auth/token/pqc?subject=postman-test&audience=minipay&scope=payments:read&ttl=3600",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth","auth","token","pqc"],
+              "query": [
+                { "key": "subject",  "value": "postman-test" },
+                { "key": "audience", "value": "minipay" },
+                { "key": "scope",    "value": "payments:read" },
+                { "key": "ttl",      "value": "3600" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify PQC Token (valid)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('valid = true', () => pm.expect(pm.response.json().valid).to.be.true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/auth/auth/token/pqc/verify?token={{pqcToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth","auth","token","pqc","verify"],
+              "query": [{ "key": "token", "value": "{{pqcToken}}" }]
+            }
+          }
+        },
+        {
+          "name": "Verify PQC Token (tampered — trebuie respins)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Manipulează payload-ul tokenului PQC",
+                  "const token = pm.collectionVariables.get('pqcToken');",
+                  "if (!token) { console.warn('pqcToken gol — rulează Get PQC Token primul'); return; }",
+                  "const parts = token.split('.');",
+                  "let payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));",
+                  "payload.sub = 'attacker';",
+                  "const tamperedPayload = btoa(JSON.stringify(payload)).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=/g,'');",
+                  "pm.variables.set('tamperedToken', parts[0] + '.' + tamperedPayload + '.' + parts[2]);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('valid = false (tampered payload respins)', () => pm.expect(pm.response.json().valid).to.be.false);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/auth/auth/token/pqc/verify?token={{tamperedToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth","auth","token","pqc","verify"],
+              "query": [{ "key": "token", "value": "{{tamperedToken}}" }]
+            }
+          }
+        },
+        {
+          "name": "Reject invalid credentials",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "bad-client" },
+                { "key": "password", "value": "bad-secret" }
+              ]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [{ "key": "grant_type", "value": "client_credentials" }]
+            },
+            "url": { "raw": "{{baseUrl}}/auth/oauth2/token", "host": ["{{baseUrl}}"], "path": ["auth","oauth2","token"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💳 Payments — Happy Path",
+      "item": [
+        {
+          "name": "1. Authorize (Visa aprobat)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Status AUTHORIZED', () => pm.expect(body.status).to.eql('AUTHORIZED'));",
+                  "pm.test('ISO code 00', () => pm.expect(body.isoResponseCode).to.eql('00'));",
+                  "pm.test('Are txnId', () => pm.expect(body.txnId).to.be.a('string'));",
+                  "pm.test('DPAN != PAN original', () => pm.expect(body.dpan).to.not.eql('4111111111111111'));",
+                  "pm.test('Fraud score < 0.8', () => pm.expect(body.fraudScore).to.be.below(0.8));",
+                  "pm.collectionVariables.set('txnId', body.txnId);",
+                  "pm.collectionVariables.set('dpan', body.dpan);",
+                  "console.log('txnId:', body.txnId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"12/28\",\n  \"cvv\": \"123\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"orderId\": \"postman-order-001\",\n  \"description\": \"Test E2E Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/authorize", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","authorize"] }
+          }
+        },
+        {
+          "name": "2. Get Payment Status (AUTHORIZED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status AUTHORIZED', () => pm.expect(pm.response.json().status).to.eql('AUTHORIZED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/{{txnId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","{{txnId}}"] }
+          }
+        },
+        {
+          "name": "3. Capture",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status CAPTURED', () => pm.expect(pm.response.json().status).to.eql('CAPTURED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000,\n  \"currency\": \"RON\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/{{txnId}}/capture", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","{{txnId}}","capture"] }
+          }
+        },
+        {
+          "name": "4. Get Payment Status (CAPTURED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status CAPTURED', () => pm.expect(pm.response.json().status).to.eql('CAPTURED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/{{txnId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","{{txnId}}"] }
+          }
+        },
+        {
+          "name": "5. Refund",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status REFUNDED', () => pm.expect(pm.response.json().status).to.eql('REFUNDED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000,\n  \"reason\": \"Customer requested refund\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/{{txnId}}/refund", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","{{txnId}}","refund"] }
+          }
+        },
+        {
+          "name": "6. Get Payment Status (REFUNDED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status REFUNDED', () => pm.expect(pm.response.json().status).to.eql('REFUNDED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/{{txnId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","{{txnId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "❌ Payments — Scenarii Negative",
+      "item": [
+        {
+          "name": "Card blocat (ISO 05)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 sau 201', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "const body = pm.response.json();",
+                  "pm.test('DECLINED sau BLOCKED', () => pm.expect(body.status).to.be.oneOf(['DECLINED','BLOCKED']));",
+                  "pm.test('ISO code 05', () => pm.expect(body.isoResponseCode).to.eql('05'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4000000000000002\",\n  \"expiryDate\": \"12/28\",\n  \"cvv\": \"123\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"orderId\": \"postman-blocked-001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/authorize", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","authorize"] }
+          }
+        },
+        {
+          "name": "Fonduri insuficiente (ISO 51)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 sau 201', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "const body = pm.response.json();",
+                  "pm.test('DECLINED', () => pm.expect(body.status).to.eql('DECLINED'));",
+                  "pm.test('ISO code 51', () => pm.expect(body.isoResponseCode).to.eql('51'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4000000000009995\",\n  \"expiryDate\": \"12/28\",\n  \"cvv\": \"123\",\n  \"amount\": 10000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"orderId\": \"postman-insuf-001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/authorize", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","authorize"] }
+          }
+        },
+        {
+          "name": "Capture pe DECLINED → 409",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Salvăm txnId-ul curent și autorizăm un card blocat",
+                  "const prevTxnId = pm.collectionVariables.get('txnId');",
+                  "pm.variables.set('prevTxnId', prevTxnId);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 Conflict — nu poți captura o plată DECLINED', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000,\n  \"currency\": \"RON\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/00000000-0000-0000-0000-000000000000/capture",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","payments","00000000-0000-0000-0000-000000000000","capture"]
+            }
+          }
+        },
+        {
+          "name": "Payment inexistent → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/00000000-0000-0000-0000-000000000000", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","00000000-0000-0000-0000-000000000000"] }
+          }
+        },
+        {
+          "name": "Fără token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"12/28\",\n  \"cvv\": \"123\",\n  \"amount\": 1000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"m1\",\n  \"orderId\": \"o1\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/authorize", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","authorize"] }
+          }
+        },
+        {
+          "name": "PAN invalid → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 Bad Request — PAN invalid', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"not-a-pan\",\n  \"expiryDate\": \"12/28\",\n  \"cvv\": \"123\",\n  \"amount\": 1000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"m1\",\n  \"orderId\": \"o1\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/authorize", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","authorize"] }
+          }
+        },
+        {
+          "name": "ExpiryDate format greșit → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 Bad Request — expiryDate trebuie MM/YY', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"1228\",\n  \"cvv\": \"123\",\n  \"amount\": 1000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"m1\",\n  \"orderId\": \"o1\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/authorize", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","authorize"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛡️ Fraud Detection",
+      "item": [
+        {
+          "name": "Score — risc scăzut (ALLOW)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Decision ALLOW', () => pm.expect(body.decision).to.eql('ALLOW'));",
+                  "pm.test('Score < 0.5', () => pm.expect(body.score).to.be.below(0.5));",
+                  "pm.test('Are shap_details', () => pm.expect(body.shap_details).to.be.an('array').with.length.gte(1));",
+                  "pm.test('Are reasons (GDPR Art.22)', () => pm.expect(body.reasons).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"4111110000001234\",\n  \"amount\": 5000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"ipAddress\": \"192.168.1.100\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/fraud/score", "host": ["{{baseUrl}}"], "path": ["fraud","score"] }
+          }
+        },
+        {
+          "name": "Score — risc ridicat (BLOCK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Decision BLOCK sau CHALLENGE', () => pm.expect(body.decision).to.be.oneOf(['BLOCK','CHALLENGE']));",
+                  "pm.test('Score >= 0.5', () => pm.expect(body.score).to.be.gte(0.5));",
+                  "pm.test('SHAP details prezente', () => pm.expect(body.shap_details).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"4000000000009999\",\n  \"amount\": 999999,\n  \"currency\": \"USD\",\n  \"merchantId\": \"merchant-risky\",\n  \"ipAddress\": \"185.220.101.1\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/fraud/score", "host": ["{{baseUrl}}"], "path": ["fraud","score"] }
+          }
+        },
+        {
+          "name": "Score — SHAP detail structure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const detail = pm.response.json().shap_details[0];",
+                  "pm.test('SHAP detail are feature', () => pm.expect(detail).to.have.property('feature'));",
+                  "pm.test('SHAP detail are shap_value', () => pm.expect(detail).to.have.property('shap_value'));",
+                  "pm.test('SHAP detail are description', () => pm.expect(detail).to.have.property('description'));",
+                  "pm.test('Score în [0,1]', () => { const s = pm.response.json().score; pm.expect(s).to.be.gte(0).and.lte(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dpan\": \"4111110000001234\",\n  \"amount\": 5000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/fraud/score", "host": ["{{baseUrl}}"], "path": ["fraud","score"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 Vault — Tokenizare AES-256-GCM",
+      "item": [
+        {
+          "name": "Tokenize PAN → DPAN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Are DPAN', () => pm.expect(body.dpan).to.be.a('string'));",
+                  "pm.test('DPAN != PAN', () => pm.expect(body.dpan).to.not.eql('4111111111111111'));",
+                  "pm.test('BIN păstrat', () => pm.expect(body.dpan.substring(0,6)).to.eql('411111'));",
+                  "pm.collectionVariables.set('dpan', body.dpan);",
+                  "console.log('DPAN:', body.dpan);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"12/28\",\n  \"requestId\": \"postman-vault-001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/vault/tokenize", "host": ["{{baseUrl}}"], "path": ["vault","tokenize"] }
+          }
+        },
+        {
+          "name": "Detokenize DPAN → PAN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('PAN recuperat corect', () => pm.expect(body.pan).to.eql('4111111111111111'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/vault/detokenize/{{dpan}}", "host": ["{{baseUrl}}"], "path": ["vault","detokenize","{{dpan}}"] }
+          }
+        },
+        {
+          "name": "Tokenize #2 — DPAN unic per apel",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const newDpan = pm.response.json().dpan;",
+                  "const prevDpan = pm.collectionVariables.get('dpan');",
+                  "pm.test('DPAN nou diferit față de cel anterior (single-use)', () => pm.expect(newDpan).to.not.eql(prevDpan));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"12/28\",\n  \"requestId\": \"postman-vault-002\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/vault/tokenize", "host": ["{{baseUrl}}"], "path": ["vault","tokenize"] }
+          }
+        },
+        {
+          "name": "Delete Token (GDPR Art.17)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/vault/tokens/{{dpan}}", "host": ["{{baseUrl}}"], "path": ["vault","tokens","{{dpan}}"] }
+          }
+        },
+        {
+          "name": "Detokenize după delete → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 — token șters (GDPR Art.17)', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/vault/detokenize/{{dpan}}", "host": ["{{baseUrl}}"], "path": ["vault","detokenize","{{dpan}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 Audit Log — Merkle Tree",
+      "item": [
+        {
+          "name": "List Audit Entries",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Are content[]', () => pm.expect(body.content).to.be.an('array'));",
+                  "pm.test('Are totalElements', () => pm.expect(body.totalElements).to.be.a('number'));",
+                  "if (body.content.length > 0) {",
+                  "  const e = body.content[0];",
+                  "  pm.test('Entry are entryHash (64 chars)', () => pm.expect(e.entryHash).to.have.lengthOf(64));",
+                  "  pm.test('Entry are txnId', () => pm.expect(e.txnId).to.be.a('string'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/audit/entries?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit","entries"],
+              "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "20" }]
+            }
+          }
+        },
+        {
+          "name": "Verify Merkle Chain Integrity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('isValid = true', () => pm.expect(body.isValid).to.be.true);",
+                  "pm.test('Are message', () => pm.expect(body.message).to.be.a('string'));",
+                  "console.log('Merkle verify:', body.message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/audit/verify", "host": ["{{baseUrl}}"], "path": ["audit","verify"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔑 3DS2 — Challenge Flow",
+      "item": [
+        {
+          "name": "Authenticate — Frictionless (fraudScore 0.2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 sau 201', () => pm.expect(pm.response.code).to.be.oneOf([200,201]));",
+                  "const body = pm.response.json();",
+                  "pm.test('transStatus Y sau A (frictionless)', () => pm.expect(body.transStatus).to.be.oneOf(['Y','A']));",
+                  "pm.test('Are acsTransID', () => pm.expect(body.acsTransID).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 1000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-001\",\n  \"fraudScore\": 0.2\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/tds/authenticate", "host": ["{{baseUrl}}"], "path": ["tds","authenticate"] }
+          }
+        },
+        {
+          "name": "Authenticate — OTP Challenge (fraudScore 0.75)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 sau 201', () => pm.expect(pm.response.code).to.be.oneOf([200,201]));",
+                  "const body = pm.response.json();",
+                  "pm.test('transStatus C (challenge)', () => pm.expect(body.transStatus).to.eql('C'));",
+                  "pm.test('Are acsTransID', () => pm.expect(body.acsTransID).to.be.a('string'));",
+                  "pm.collectionVariables.set('acsTransID', body.acsTransID);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan\": \"4111111111111111\",\n  \"expiryDate\": \"12/28\",\n  \"amount\": 50000,\n  \"currency\": \"RON\",\n  \"merchantId\": \"merchant-risky\",\n  \"fraudScore\": 0.75\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/tds/authenticate", "host": ["{{baseUrl}}"], "path": ["tds","authenticate"] }
+          }
+        },
+        {
+          "name": "Get Challenge (obține OTP demo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Are otp_demo_only', () => pm.expect(body.otp_demo_only).to.be.a('string'));",
+                  "pm.variables.set('otp', body.otp_demo_only);",
+                  "console.log('OTP demo:', body.otp_demo_only);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/tds/challenge/{{acsTransID}}", "host": ["{{baseUrl}}"], "path": ["tds","challenge","{{acsTransID}}"] }
+          }
+        },
+        {
+          "name": "Submit OTP corect → Y",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('transStatus Y sau A după OTP corect', () => pm.expect(pm.response.json().transStatus).to.be.oneOf(['Y','A']));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otp\": \"{{otp}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/tds/challenge/{{acsTransID}}", "host": ["{{baseUrl}}"], "path": ["tds","challenge","{{acsTransID}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💰 Settlement",
+      "item": [
+        {
+          "name": "List Settlement Batches",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/settlements/batches?date={{$isoTimestamp}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["settlements","batches"],
+              "query": [{ "key": "date", "value": "{{$isoTimestamp}}" }]
+            }
+          }
+        },
+        {
+          "name": "List Settlement Records",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/settlements/records", "host": ["{{baseUrl}}"], "path": ["settlements","records"] }
+          }
+        },
+        {
+          "name": "Trigger Reconciliation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 sau 202', () => pm.expect(pm.response.code).to.be.oneOf([200, 202]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/settlements/reconcile", "host": ["{{baseUrl}}"], "path": ["settlements","reconcile"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏦 PSD2 Open Banking",
+      "item": [
+        {
+          "name": "Create Consent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 sau 201', () => pm.expect(pm.response.code).to.be.oneOf([200,201]));",
+                  "const body = pm.response.json();",
+                  "pm.test('Are consentId', () => pm.expect(body.consentId).to.be.a('string'));",
+                  "pm.test('Status VALID', () => pm.expect(body.status).to.eql('VALID'));",
+                  "pm.collectionVariables.set('consentId', body.consentId);",
+                  "console.log('consentId:', body.consentId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"psuId\": \"postman-user\",\n  \"accountIds\": [\"ACC-001\"],\n  \"permissions\": [\"ReadAccountList\", \"ReadBalances\", \"ReadTransactions\"],\n  \"validUntil\": \"2027-12-31\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/psd2/consents", "host": ["{{baseUrl}}"], "path": ["psd2","consents"] }
+          }
+        },
+        {
+          "name": "Get Consent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status VALID', () => pm.expect(pm.response.json().status).to.eql('VALID'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/psd2/consents/{{consentId}}", "host": ["{{baseUrl}}"], "path": ["psd2","consents","{{consentId}}"] }
+          }
+        },
+        {
+          "name": "Get Accounts (AIS)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Are accounts[]', () => pm.expect(pm.response.json().accounts).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Consent-ID", "value": "{{consentId}}" }],
+            "url": { "raw": "{{baseUrl}}/psd2/accounts", "host": ["{{baseUrl}}"], "path": ["psd2","accounts"] }
+          }
+        },
+        {
+          "name": "Get Account Balances",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Are balances[]', () => pm.expect(pm.response.json().balances).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Consent-ID", "value": "{{consentId}}" }],
+            "url": { "raw": "{{baseUrl}}/psd2/accounts/ACC-001/balances", "host": ["{{baseUrl}}"], "path": ["psd2","accounts","ACC-001","balances"] }
+          }
+        },
+        {
+          "name": "Get Account Transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Are transactions', () => pm.expect(pm.response.json()).to.have.property('transactions'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Consent-ID", "value": "{{consentId}}" }],
+            "url": { "raw": "{{baseUrl}}/psd2/accounts/ACC-001/transactions", "host": ["{{baseUrl}}"], "path": ["psd2","accounts","ACC-001","transactions"] }
+          }
+        },
+        {
+          "name": "Revoke Consent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status REVOKED', () => pm.expect(pm.response.json().status).to.eql('REVOKED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/psd2/consents/{{consentId}}", "host": ["{{baseUrl}}"], "path": ["psd2","consents","{{consentId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔔 Notifications",
+      "item": [
+        {
+          "name": "List All Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/notif/notifications", "host": ["{{baseUrl}}"], "path": ["notif","notifications"] }
+          }
+        },
+        {
+          "name": "Notification Stats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Are total', () => pm.expect(body.total).to.be.a('number'));",
+                  "pm.test('Are byChannel', () => pm.expect(body.byChannel).to.be.an('object'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/notif/notifications/stats", "host": ["{{baseUrl}}"], "path": ["notif","notifications","stats"] }
+          }
+        },
+        {
+          "name": "Notifications by txnId",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 sau 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/notif/notifications/{{txnId}}", "host": ["{{baseUrl}}"], "path": ["notif","notifications","{{txnId}}"] }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -8,7 +8,7 @@ import { useAuthStore } from "@/lib/store/auth.store";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,43 +31,83 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f1117] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <span className="text-3xl font-bold text-blue-400">Mini</span>
-          <span className="text-3xl font-bold text-white">Pay</span>
-          <p className="text-white/40 text-sm mt-2">Payment Gateway Dashboard</p>
+    <div className="min-h-screen bg-gradient-to-br from-background via-[#0a0f18] to-background flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Animated background gradient orbs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 right-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-pulse opacity-20" />
+        <div className="absolute bottom-40 left-32 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse opacity-20 delay-1000" />
+      </div>
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Header */}
+        <div className="mb-12 text-center fadeIn">
+
+          <h1 className="text-4xl font-display font-bold mb-2">
+            <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">Mini</span>
+            <span className="text-foreground">Pay</span>
+          </h1>
+          <p className="text-foreground/60 text-base font-medium">Enterprise Payment Platform</p>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-[#1a1d27] p-8">
-          <h1 className="text-lg font-semibold mb-6">Sign in</h1>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="clientId">Client ID</Label>
+        {/* Login Card */}
+        <div className="card-premium glass backdrop-blur-xl border-foreground/20 fadeIn" style={{ animationDelay: "0.1s" }}>
+          <div className="mb-8">
+            <h2 className="text-2xl font-display font-bold text-foreground">Welcome Back</h2>
+            <p className="text-foreground/50 text-sm mt-2">Sign in to your dashboard</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Client ID */}
+            <div className="space-y-2.5">
+              <Label htmlFor="clientId" className="text-sm font-semibold text-foreground">
+                Client ID
+              </Label>
               <Input
                 id="clientId"
                 defaultValue="minipay-dashboard"
-                className="bg-white/5 border-white/10"
+                className="bg-input/30 border-foreground/20 placeholder:text-foreground/30"
                 readOnly
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="secret">Client Secret</Label>
+
+            {/* Client Secret */}
+            <div className="space-y-2.5">
+              <Label htmlFor="secret" className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Lock size={16} className="text-cyan-400" />
+                Client Secret
+              </Label>
               <Input
                 id="secret"
                 type="password"
                 defaultValue="minipay-dashboard-secret"
-                className="bg-white/5 border-white/10"
+                className="bg-input/30 border-foreground/20 placeholder:text-foreground/30"
                 readOnly
               />
             </div>
-            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
-              {loading ? <><Loader2 size={16} className="animate-spin mr-2" /> Authenticating...</> : "Sign in"}
+
+            {/* Sign In Button */}
+            <Button
+              type="submit"
+              className="w-full btn-primary mt-6 h-11 text-base font-semibold shadow-lg shadow-emerald-500/30"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin mr-2" />
+                  <span>Authenticating...</span>
+                </>
+              ) : (
+                <span>Sign In</span>
+              )}
             </Button>
           </form>
-          <p className="text-xs text-white/30 text-center mt-4">
-            OAuth2 client_credentials grant via auth-svc
-          </p>
+
+          {/* Footer */}
+        </div>
+
+        {/* Bottom info */}
+        <div className="mt-8 text-center text-xs text-foreground/40 fadeIn" style={{ animationDelay: "0.2s" }}>
+          <p>Enterprise-grade security with post-quantum crypto ready</p>
         </div>
       </div>
     </div>

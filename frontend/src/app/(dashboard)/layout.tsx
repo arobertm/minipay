@@ -14,10 +14,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [isAuthenticated, router]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto bg-[#0f1117]">
-        <div className="max-w-6xl mx-auto px-6 py-8">{children}</div>
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-7xl mx-auto">{children}</div>
       </main>
     </div>
   );

@@ -7,12 +7,13 @@ import { settlements, SettlementBatch, SettlementRecord } from "@/lib/api/settle
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RefreshCw, Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { RefreshCw, Loader2, CheckCircle2, XCircle, Clock, Landmark } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const BATCH_STYLE: Record<string, string> = {
-  COMPLETED: "bg-green-500/20 text-green-400 border-green-500/30",
-  PENDING: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  FAILED: "bg-red-500/20 text-red-400 border-red-500/30",
+  COMPLETED: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  PENDING:   "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  FAILED:    "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
 export default function SettlementsPage() {
@@ -36,47 +37,57 @@ export default function SettlementsPage() {
   });
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-start justify-between">
+    <div className="space-y-8 p-6">
+      <div className="flex items-start justify-between fadeIn">
         <div>
-          <h1 className="text-2xl font-bold">Settlements</h1>
-          <p className="text-white/40 text-sm mt-1">Daily batch reconciliation — auto at 01:00 UTC</p>
+          <h1 className="text-4xl font-display font-bold text-foreground">Settlement-uri</h1>
+          <p className="text-foreground/60 text-base mt-2 font-medium">Reconciliere automată zilnic la 01:00 UTC</p>
         </div>
-        <Button
-          className="bg-blue-600 hover:bg-blue-700"
-          onClick={() => reconcileMut.mutate(undefined)}
-          disabled={reconcileMut.isPending}
-        >
-          {reconcileMut.isPending ? <><Loader2 size={16} className="animate-spin mr-2" />Reconciling…</> : <><RefreshCw size={16} className="mr-2" />Run Reconciliation</>}
+        <Button onClick={() => reconcileMut.mutate(undefined)} disabled={reconcileMut.isPending}>
+          {reconcileMut.isPending
+            ? <><Loader2 size={16} className="animate-spin mr-2" />Se reconciliază…</>
+            : <><RefreshCw size={16} className="mr-2" />Rulează reconciliere</>}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Batches */}
-        <div className="rounded-xl border border-white/10 bg-[#1a1d27] overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/10">
-            <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Batches</h2>
+        <div className="card-premium p-0 overflow-hidden fadeIn stagger-1">
+          <div className="px-6 py-4 border-b border-border/40 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-500/20">
+              <Landmark size={16} className="text-amber-400" />
+            </div>
+            <h2 className="text-base font-display font-semibold">Batches</h2>
           </div>
           {batchQ.isLoading ? (
-            <div className="p-5 space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 bg-white/5" />)}</div>
+            <div className="p-5 space-y-3">
+              {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 bg-foreground/5 rounded-lg" />)}
+            </div>
           ) : !batchQ.data?.length ? (
-            <p className="p-8 text-center text-white/30 text-sm">No batches yet. Run reconciliation to create one.</p>
+            <div className="flex flex-col items-center justify-center py-14 text-foreground/20">
+              <Clock size={28} className="mb-3" />
+              <p className="text-sm font-medium">Niciun batch încă</p>
+              <p className="text-xs mt-1">Rulează reconcilierea pentru a crea primul batch</p>
+            </div>
           ) : (
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-border/20">
               {batchQ.data.map((b) => (
                 <button
                   key={b.id}
                   onClick={() => setSelected(b)}
-                  className={`w-full text-left px-5 py-4 hover:bg-white/3 transition-colors ${selected?.id === b.id ? "bg-blue-600/10" : ""}`}
+                  className={cn(
+                    "w-full text-left px-6 py-4 hover:bg-foreground/5 transition-colors duration-150",
+                    selected?.id === b.id && "bg-primary/10 border-l-2 border-primary"
+                  )}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium">{b.settlementDate}</p>
-                      <p className="text-xs text-white/40 mt-0.5">{b.txnCount} txns · {b.merchantId} · {b.currency}</p>
+                      <p className="text-sm font-semibold text-foreground">{b.settlementDate}</p>
+                      <p className="text-xs text-foreground/50 mt-1">{b.txnCount} txns · {b.merchantId} · {b.currency}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-semibold">{(b.netAmount / 100).toFixed(2)}</span>
-                      <Badge className={BATCH_STYLE[b.status] ?? "bg-white/10 text-white/50"}>{b.status}</Badge>
+                      <span className="font-semibold text-foreground">${(b.netAmount / 100).toFixed(2)}</span>
+                      <Badge className={BATCH_STYLE[b.status] ?? "bg-foreground/10 text-foreground/50"}>{b.status}</Badge>
                     </div>
                   </div>
                 </button>
@@ -86,32 +97,36 @@ export default function SettlementsPage() {
         </div>
 
         {/* Records */}
-        <div className="rounded-xl border border-white/10 bg-[#1a1d27] overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/10">
-            <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">
-              Records {selected ? `— ${selected.settlementDate}` : ""}
+        <div className="card-premium p-0 overflow-hidden fadeIn stagger-2">
+          <div className="px-6 py-4 border-b border-border/40">
+            <h2 className="text-base font-display font-semibold">
+              Înregistrări {selected ? <span className="text-foreground/50 font-normal">— {selected.settlementDate}</span> : ""}
             </h2>
           </div>
           {!selected ? (
-            <div className="flex flex-col items-center justify-center h-48 text-white/20">
-              <Clock size={32} className="mb-2" />
-              <p className="text-sm">Select a batch to view records</p>
+            <div className="flex flex-col items-center justify-center py-14 text-foreground/20">
+              <Clock size={28} className="mb-3" />
+              <p className="text-sm font-medium">Selectează un batch pentru a vedea înregistrările</p>
             </div>
           ) : recordQ.isLoading ? (
-            <div className="p-5 space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 bg-white/5" />)}</div>
+            <div className="p-5 space-y-3">
+              {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 bg-foreground/5 rounded-lg" />)}
+            </div>
           ) : !recordQ.data?.length ? (
-            <p className="p-8 text-center text-white/30 text-sm">No records in this batch.</p>
+            <p className="p-8 text-center text-foreground/30 text-sm">Nicio înregistrare în acest batch.</p>
           ) : (
-            <div className="divide-y divide-white/5">
-              {recordQ.data.map((r) => (
-                <div key={r.id} className="px-5 py-3 flex items-center justify-between">
+            <div className="divide-y divide-border/20">
+              {recordQ.data.map((r: SettlementRecord) => (
+                <div key={r.id} className="px-6 py-4 flex items-center justify-between hover:bg-foreground/3 transition-colors">
                   <div>
-                    <p className="font-mono text-xs text-white/50">{r.txnId?.slice(0, 18)}…</p>
-                    <p className="text-xs text-white/30">{r.paymentStatus}</p>
+                    <p className="font-mono text-xs text-foreground/50">{r.txnId?.slice(0, 18)}…</p>
+                    <p className="text-xs text-foreground/40 mt-0.5">{r.paymentStatus}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">{(r.amount / 100).toFixed(2)} {r.currency}</span>
-                    {r.paymentStatus === "CAPTURED" ? <CheckCircle2 size={14} className="text-green-400" /> : <XCircle size={14} className="text-purple-400" />}
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium">{(r.amount / 100).toFixed(2)} {r.currency}</span>
+                    {r.paymentStatus === "CAPTURED"
+                      ? <CheckCircle2 size={16} className="text-emerald-400" />
+                      : <XCircle size={16} className="text-purple-400" />}
                   </div>
                 </div>
               ))}

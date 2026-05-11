@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Lock, ShieldCheck, ArrowLeft } from "lucide-react";
+import { Loader2, Lock, ShieldCheck, ArrowLeft, CreditCard } from "lucide-react";
 import Link from "next/link";
 
 interface CartItem { id: string; name: string; price: number; currency: string; qty: number }
@@ -18,7 +18,6 @@ interface CartItem { id: string; name: string; price: number; currency: string; 
 export default function CheckoutPage() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [step, setStep] = useState<"form" | "processing" | "done">("form");
 
   const [cardForm, setCardForm] = useState({
     pan: "4111111111111111",
@@ -36,13 +35,12 @@ export default function CheckoutPage() {
 
   const checkoutMut = useMutation({
     mutationFn: () =>
-      // Gateway tokenizes PAN internally via vault-svc — send PAN directly
       gateway.authorize({
         pan: cardForm.pan,
         expiryDate: cardForm.expiry,
         cvv: cardForm.cvv,
-        amount: toCents(total),          // convert to cents
-        currency: "EUR",
+        amount: toCents(total),
+        currency: "RON",
         merchantId: "DEMO-SHOP-001",
         orderId: `SHOP-${Date.now()}`,
         description: `Demo Shop — ${cart.length} item(s)`,
@@ -51,101 +49,114 @@ export default function CheckoutPage() {
       localStorage.removeItem("mp_cart");
       router.push(`/shop/receipt?txnId=${data.txnId}&status=${data.status}&amount=${data.amount}&currency=${data.currency}&fraud=${data.fraudScore ?? 0}`);
     },
-    onError: () => {
-      toast.error("Payment failed — please try again");
-      setStep("form");
-    },
+    onError: () => toast.error("Payment failed — please try again"),
   });
 
   const cf = (k: keyof typeof cardForm, v: string) => setCardForm((p) => ({ ...p, [k]: v }));
 
   return (
-    <div className="min-h-screen bg-[#0f1117] text-white">
-      <header className="border-b border-white/10 px-6 py-4 flex items-center gap-4">
-        <Link href="/shop" className="text-white/40 hover:text-white transition-colors">
+    <div className="min-h-screen text-gray-900" style={{ background: "#f8f9fb" }}>
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 px-6 py-4 flex items-center gap-4" style={{ backdropFilter: "blur(12px)" }}>
+        <Link href="/shop" className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-700">
           <ArrowLeft size={18} />
         </Link>
         <div>
-          <span className="text-xl font-bold text-blue-400">Mini</span>
-          <span className="text-xl font-bold">Pay</span>
-          <span className="text-white/40 text-sm ml-3">Secure Checkout</span>
+          <span className="text-xl font-display font-bold text-primary">Mini</span>
+          <span className="text-xl font-display font-bold text-gray-900">Pay</span>
+          <span className="text-gray-400 text-sm ml-3 font-medium">Checkout securizat</span>
         </div>
-        <Lock size={16} className="text-green-400 ml-auto" />
+        <div className="ml-auto flex items-center gap-2 text-xs text-emerald-600 font-medium">
+          <Lock size={14} />
+          <span>Securizat · TLS</span>
+        </div>
       </header>
 
       <div className="max-w-4xl mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Order Summary */}
-        <div className="rounded-xl border border-white/10 bg-[#1a1d27] p-6 h-fit">
-          <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Order Summary</h2>
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm h-fit fadeIn stagger-1">
+          <h2 className="text-base font-display font-semibold mb-5 text-gray-900">Sumar comandă</h2>
           <div className="space-y-3">
             {cart.map((item) => (
               <div key={item.id} className="flex items-center justify-between text-sm">
-                <span className="text-white/70">{item.name} <span className="text-white/30">×{item.qty}</span></span>
-                <span>€{(item.price * item.qty).toFixed(2)}</span>
+                <span className="text-gray-600">
+                  {item.name}
+                  <span className="text-gray-400 ml-1">×{item.qty}</span>
+                </span>
+                <span className="font-semibold text-gray-900">{(item.price * item.qty).toLocaleString("ro-RO")} lei</span>
               </div>
             ))}
           </div>
-          <Separator className="my-4 bg-white/10" />
+          <Separator className="my-5 bg-gray-100" />
           <div className="flex items-center justify-between font-bold">
-            <span>Total</span>
-            <span className="text-xl">€{total.toFixed(2)}</span>
+            <span className="text-gray-500">Total</span>
+            <span className="text-2xl font-display text-gray-900">{total.toLocaleString("ro-RO")} lei</span>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-white/30">
-            <ShieldCheck size={12} className="text-green-400" />
-            Powered by MiniPay Gateway · EMV Tokenized · TLS
+          <div className="mt-5 p-3 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-xs text-emerald-700 font-medium">
+            <ShieldCheck size={14} />
+            MiniPay Gateway · EMV Tokenizat · Criptat TLS
           </div>
         </div>
 
         {/* Payment Form */}
-        <div className="rounded-xl border border-white/10 bg-[#1a1d27] p-6">
-          <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-5">Payment Details</h2>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Cardholder Name</Label>
-              <Input value={cardForm.name} onChange={(e) => cf("name", e.target.value)} className="bg-white/5 border-white/10" />
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm fadeIn stagger-2">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 rounded-lg bg-emerald-50">
+              <CreditCard size={18} className="text-primary" />
             </div>
-            <div className="space-y-1.5">
-              <Label>Card Number</Label>
+            <h2 className="text-base font-display font-semibold text-gray-900">Date de plată</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-gray-600 font-medium text-sm">Titular card</Label>
+              <Input value={cardForm.name} onChange={(e) => cf("name", e.target.value)}
+                className="border-gray-200 bg-white text-gray-900 focus-visible:ring-primary/30" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-600 font-medium text-sm">Număr card</Label>
               <Input
                 value={cardForm.pan}
                 onChange={(e) => cf("pan", e.target.value.replace(/\s/g, ""))}
                 placeholder="1234 5678 9012 3456"
                 maxLength={16}
-                className="bg-white/5 border-white/10 font-mono tracking-widest"
+                className="font-mono tracking-widest border-gray-200 bg-white text-gray-900 focus-visible:ring-primary/30"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Expiry</Label>
-                <Input value={cardForm.expiry} onChange={(e) => cf("expiry", e.target.value)} placeholder="MM/YY" className="bg-white/5 border-white/10" />
+              <div className="space-y-2">
+                <Label className="text-gray-600 font-medium text-sm">Expirare</Label>
+                <Input value={cardForm.expiry} onChange={(e) => cf("expiry", e.target.value)} placeholder="MM/AA"
+                  className="border-gray-200 bg-white text-gray-900 focus-visible:ring-primary/30" />
               </div>
-              <div className="space-y-1.5">
-                <Label>CVV</Label>
-                <Input value={cardForm.cvv} onChange={(e) => cf("cvv", e.target.value)} maxLength={4} className="bg-white/5 border-white/10" />
+              <div className="space-y-2">
+                <Label className="text-gray-600 font-medium text-sm">CVV</Label>
+                <Input value={cardForm.cvv} onChange={(e) => cf("cvv", e.target.value)} maxLength={4}
+                  className="border-gray-200 bg-white text-gray-900 focus-visible:ring-primary/30" />
               </div>
             </div>
           </div>
 
-          <div className="mt-2 mb-4 flex items-center gap-2 text-xs text-white/30">
-            <Lock size={10} className="text-green-400" />
-            Card is tokenized via EMV vault before processing
+          <div className="mt-3 mb-5 flex items-center gap-2 text-xs text-gray-400">
+            <Lock size={11} className="text-primary" />
+            Cardul este tokenizat prin EMV vault înainte de procesare
           </div>
 
           <Button
-            className="w-full bg-blue-600 hover:bg-blue-700 py-5 text-base font-semibold"
-            onClick={() => { setStep("processing"); checkoutMut.mutate(); }}
+            className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20"
+            onClick={() => checkoutMut.mutate()}
             disabled={checkoutMut.isPending || cart.length === 0}
           >
             {checkoutMut.isPending ? (
-              <><Loader2 size={18} className="animate-spin mr-2" />Processing payment…</>
+              <><Loader2 size={18} className="animate-spin mr-2" />Se procesează…</>
             ) : (
-              <>Pay €{total.toFixed(2)}</>
+              <>Plătește {total.toLocaleString("ro-RO")} lei</>
             )}
           </Button>
 
-          <div className="flex items-center justify-center gap-3 mt-4">
+          <div className="flex items-center justify-center gap-3 mt-5">
             {["VISA", "MC", "AMEX"].map((b) => (
-              <Badge key={b} className="bg-white/5 text-white/40 border-white/10 text-xs">{b}</Badge>
+              <Badge key={b} className="bg-gray-100 text-gray-400 border-gray-200 text-xs font-semibold">{b}</Badge>
             ))}
           </div>
         </div>

@@ -7,8 +7,7 @@ import { vault } from "@/lib/api/vault";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowRight, KeyRound, Copy } from "lucide-react";
+import { Loader2, ArrowRight, KeyRound, Copy, Lock, Unlock } from "lucide-react";
 
 export default function VaultPage() {
   const [panForm, setPanForm] = useState({ pan: "4111111111111111", expiry: "12/28", cvv: "123" });
@@ -34,52 +33,73 @@ export default function VaultPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Token Vault</h1>
-        <p className="text-white/40 text-sm mt-1">EMV tokenization — PAN → DPAN via AES-256-GCM</p>
+    <div className="space-y-8 p-6">
+      <div className="fadeIn">
+        <h1 className="text-4xl font-display font-bold text-foreground">Token Vault</h1>
+        <p className="text-foreground/60 text-base mt-2 font-medium">Tokenizare EMV — PAN → DPAN prin AES-256-GCM</p>
       </div>
 
-      {/* Visual diagram */}
-      <div className="flex items-center justify-center gap-4 py-4">
-        <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-mono text-white/70">PAN</div>
-        <ArrowRight size={20} className="text-white/30" />
-        <div className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-4 py-2 text-sm text-blue-400 flex items-center gap-2">
-          <KeyRound size={14} /> AES-256-GCM Vault
+      {/* Visual flow diagram */}
+      <div className="card-premium fadeIn stagger-1">
+        <div className="flex items-center justify-center gap-4 py-2">
+          <div className="flex flex-col items-center gap-2">
+            <div className="rounded-xl border border-border/40 bg-foreground/5 px-6 py-3 text-sm font-mono font-semibold text-foreground/70">
+              PAN
+            </div>
+            <span className="text-xs text-foreground/40 font-medium">Card Number</span>
+          </div>
+          <ArrowRight size={22} className="text-foreground/30 shrink-0" />
+          <div className="flex flex-col items-center gap-2">
+            <div className="rounded-xl border border-primary/40 bg-primary/10 px-6 py-3 text-sm text-primary flex items-center gap-2.5 font-semibold">
+              <KeyRound size={16} /> AES-256-GCM Vault
+            </div>
+            <span className="text-xs text-foreground/40 font-medium">Encrypted Storage</span>
+          </div>
+          <ArrowRight size={22} className="text-foreground/30 shrink-0" />
+          <div className="flex flex-col items-center gap-2">
+            <div className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-6 py-3 text-sm font-mono font-semibold text-cyan-400">
+              DPAN
+            </div>
+            <span className="text-xs text-foreground/40 font-medium">Token</span>
+          </div>
         </div>
-        <ArrowRight size={20} className="text-white/30" />
-        <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-mono text-white/70">DPAN</div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Tokenize */}
-        <div className="rounded-xl border border-white/10 bg-[#1a1d27] p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Tokenize PAN</h2>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>PAN</Label>
-              <Input value={panForm.pan} onChange={(e) => setPanForm((f) => ({ ...f, pan: e.target.value }))} className="bg-white/5 border-white/10 font-mono" />
+        <div className="card-premium space-y-5 fadeIn stagger-2">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/20">
+              <Lock size={18} className="text-primary" />
+            </div>
+            <h2 className="text-base font-display font-semibold">Tokenizează PAN</h2>
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-foreground/70 font-medium">Număr card (PAN)</Label>
+              <Input value={panForm.pan} onChange={(e) => setPanForm((f) => ({ ...f, pan: e.target.value }))} className="font-mono" />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Expiry</Label>
-                <Input value={panForm.expiry} onChange={(e) => setPanForm((f) => ({ ...f, expiry: e.target.value }))} className="bg-white/5 border-white/10" />
+              <div className="space-y-2">
+                <Label className="text-foreground/70 font-medium">Expiry</Label>
+                <Input value={panForm.expiry} onChange={(e) => setPanForm((f) => ({ ...f, expiry: e.target.value }))} />
               </div>
-              <div className="space-y-1.5">
-                <Label>CVV</Label>
-                <Input value={panForm.cvv} onChange={(e) => setPanForm((f) => ({ ...f, cvv: e.target.value }))} className="bg-white/5 border-white/10" />
+              <div className="space-y-2">
+                <Label className="text-foreground/70 font-medium">CVV</Label>
+                <Input value={panForm.cvv} onChange={(e) => setPanForm((f) => ({ ...f, cvv: e.target.value }))} />
               </div>
             </div>
           </div>
-          <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => tokenizeMut.mutate()} disabled={tokenizeMut.isPending}>
-            {tokenizeMut.isPending ? <><Loader2 size={16} className="animate-spin mr-2" />Tokenizing…</> : "Tokenize"}
+          <Button className="w-full" onClick={() => tokenizeMut.mutate()} disabled={tokenizeMut.isPending}>
+            {tokenizeMut.isPending ? <><Loader2 size={16} className="animate-spin mr-2" />Se tokenizează…</> : "Tokenizează cardul"}
           </Button>
           {dpanResult && (
-            <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-4">
-              <p className="text-xs text-green-400/70 mb-1">DPAN</p>
-              <div className="flex items-center justify-between">
-                <p className="font-mono text-green-400 text-sm break-all">{dpanResult}</p>
-                <button onClick={() => copyToClipboard(dpanResult)} className="ml-2 shrink-0 text-green-400/60 hover:text-green-400">
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+              <p className="text-xs text-emerald-400/70 font-semibold uppercase tracking-wider mb-2">DPAN Generat</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-mono text-emerald-400 text-sm break-all">{dpanResult}</p>
+                <button onClick={() => copyToClipboard(dpanResult)}
+                  className="shrink-0 p-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors">
                   <Copy size={14} />
                 </button>
               </div>
@@ -88,24 +108,30 @@ export default function VaultPage() {
         </div>
 
         {/* Detokenize */}
-        <div className="rounded-xl border border-white/10 bg-[#1a1d27] p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Detokenize DPAN</h2>
-          <div className="space-y-1.5">
-            <Label>DPAN</Label>
-            <Input value={dpanInput} onChange={(e) => setDpanInput(e.target.value)} placeholder="Paste DPAN here" className="bg-white/5 border-white/10 font-mono" />
+        <div className="card-premium space-y-5 fadeIn stagger-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-cyan-500/20">
+              <Unlock size={18} className="text-cyan-400" />
+            </div>
+            <h2 className="text-base font-display font-semibold">Detokenizează DPAN</h2>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-foreground/70 font-medium">DPAN Token</Label>
+            <Input value={dpanInput} onChange={(e) => setDpanInput(e.target.value)} placeholder="Paste DPAN here" className="font-mono" />
           </div>
           {dpanResult && (
-            <Button variant="outline" size="sm" className="text-xs border-white/20" onClick={() => setDpanInput(dpanResult)}>
-              Use tokenized DPAN
+            <Button variant="outline" size="sm" className="text-xs"
+              onClick={() => setDpanInput(dpanResult)}>
+              Folosește DPAN tokenizat ↑
             </Button>
           )}
-          <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => detokenizeMut.mutate()} disabled={detokenizeMut.isPending || !dpanInput}>
-            {detokenizeMut.isPending ? <><Loader2 size={16} className="animate-spin mr-2" />Detokenizing…</> : "Detokenize"}
+          <Button className="w-full" variant="secondary" onClick={() => detokenizeMut.mutate()} disabled={detokenizeMut.isPending || !dpanInput}>
+            {detokenizeMut.isPending ? <><Loader2 size={16} className="animate-spin mr-2" />Se detokenizează…</> : "Detokenizează"}
           </Button>
           {deTokenResult && (
-            <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4">
-              <p className="text-xs text-blue-400/70 mb-1">Original PAN (masked)</p>
-              <p className="font-mono text-blue-400 text-sm">{deTokenResult}</p>
+            <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-4">
+              <p className="text-xs text-cyan-400/70 font-semibold uppercase tracking-wider mb-2">PAN original (mascat)</p>
+              <p className="font-mono text-cyan-400 text-sm">{deTokenResult}</p>
             </div>
           )}
         </div>

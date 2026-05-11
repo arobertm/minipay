@@ -6,6 +6,7 @@ import { notifications } from "@/lib/api/notifications";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bell, Mail, MessageSquare, Smartphone } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const CHANNEL_ICON: Record<string, React.ElementType> = {
   EMAIL: Mail,
@@ -14,14 +15,21 @@ const CHANNEL_ICON: Record<string, React.ElementType> = {
 };
 
 const CHANNEL_STYLE: Record<string, string> = {
-  EMAIL: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  SMS:   "bg-green-500/20 text-green-400 border-green-500/30",
+  EMAIL: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  SMS:   "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
   PUSH:  "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  LOG:   "bg-white/10 text-white/50 border-white/10",
+  LOG:   "bg-foreground/10 text-foreground/50 border-foreground/20",
+};
+
+const CHANNEL_ICON_BG: Record<string, string> = {
+  EMAIL: "bg-cyan-500/15 text-cyan-400",
+  SMS:   "bg-emerald-500/15 text-emerald-400",
+  PUSH:  "bg-purple-500/15 text-purple-400",
+  LOG:   "bg-foreground/10 text-foreground/50",
 };
 
 const STATUS_STYLE: Record<string, string> = {
-  SENT:   "bg-green-500/20 text-green-400 border-green-500/30",
+  SENT:   "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
   FAILED: "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
@@ -32,7 +40,7 @@ export default function NotificationsPage() {
 
   const listQ = useQuery({
     queryKey: ["notifications"],
-    queryFn:  notifications.list,
+    queryFn: notifications.list,
     refetchInterval: 10_000,
   });
   const statsQ = useQuery({ queryKey: ["notif-stats"], queryFn: notifications.stats });
@@ -42,15 +50,15 @@ export default function NotificationsPage() {
   );
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Notifications</h1>
-        <p className="text-white/40 text-sm mt-1">Kafka consumer · Auto-refresh every 10 seconds</p>
+    <div className="space-y-8 p-6">
+      <div className="fadeIn">
+        <h1 className="text-4xl font-display font-bold text-foreground">Notificări</h1>
+        <p className="text-foreground/60 text-base mt-2 font-medium">Consumer Kafka · Reîmprospătare automată la 10 secunde</p>
       </div>
 
-      {/* Stats */}
+      {/* Filter chips */}
       {statsQ.data && (
-        <div className="flex gap-4 flex-wrap">
+        <div className="flex gap-3 flex-wrap fadeIn stagger-1">
           {(["ALL", "SMS", "EMAIL", "PUSH"] as ChannelFilter[]).map((ch) => {
             const count = ch === "ALL" ? statsQ.data.total : (statsQ.data.byChannel[ch] ?? 0);
             const Icon = ch === "ALL" ? Bell : CHANNEL_ICON[ch];
@@ -58,14 +66,19 @@ export default function NotificationsPage() {
               <button
                 key={ch}
                 onClick={() => setFilter(ch)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm transition-colors ${
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all duration-200",
                   filter === ch
-                    ? "border-blue-500/50 bg-blue-600/20 text-blue-400"
-                    : "border-white/10 bg-white/5 text-white/50 hover:text-white hover:bg-white/10"
-                }`}
+                    ? "border-primary/50 bg-primary/20 text-primary shadow-lg shadow-primary/10"
+                    : "border-border/40 bg-foreground/5 text-foreground/60 hover:text-foreground hover:bg-foreground/10 hover:border-border/60"
+                )}
               >
-                <Icon size={14} />
-                {ch} <span className="font-bold">{count}</span>
+                <Icon size={15} />
+                <span>{ch}</span>
+                <span className={cn(
+                  "font-bold text-xs px-1.5 py-0.5 rounded-md",
+                  filter === ch ? "bg-primary/30 text-primary" : "bg-foreground/10 text-foreground/50"
+                )}>{count}</span>
               </button>
             );
           })}
@@ -73,44 +86,47 @@ export default function NotificationsPage() {
       )}
 
       {/* List */}
-      <div className="rounded-xl border border-white/10 bg-[#1a1d27] overflow-hidden">
+      <div className="card-premium p-0 overflow-hidden fadeIn stagger-2">
         {listQ.isLoading ? (
           <div className="p-5 space-y-3">
-            {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-16 bg-white/5" />)}
+            {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-20 bg-foreground/5 rounded-lg" />)}
           </div>
         ) : !filtered.length ? (
-          <div className="flex flex-col items-center justify-center py-16 text-white/20">
-            <Bell size={36} className="mb-3" />
-            <p className="text-sm">No notifications yet. Run a payment to generate one.</p>
+          <div className="flex flex-col items-center justify-center py-16 text-foreground/20">
+            <div className="w-14 h-14 rounded-full bg-foreground/5 flex items-center justify-center mb-4">
+              <Bell size={24} />
+            </div>
+            <p className="text-sm font-medium">Nicio notificare încă</p>
+            <p className="text-xs mt-1">Procesează o plată pentru a genera notificări</p>
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
+          <div className="divide-y divide-border/20">
             {filtered.map((n, idx) => {
               const Icon = CHANNEL_ICON[n.channel] ?? Bell;
               return (
-                <div key={`${n.txnId}-${idx}`} className="px-5 py-4 flex items-start gap-4">
-                  <div className={`rounded-lg p-2 mt-0.5 ${CHANNEL_STYLE[n.channel] ?? ""}`}>
+                <div key={`${n.txnId}-${idx}`} className="px-6 py-4 flex items-start gap-4 hover:bg-foreground/3 transition-colors duration-150">
+                  <div className={cn("rounded-lg p-2.5 mt-0.5 shrink-0", CHANNEL_ICON_BG[n.channel] ?? "bg-foreground/10 text-foreground/50")}>
                     <Icon size={16} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                       <Badge className={CHANNEL_STYLE[n.channel]}>{n.channel}</Badge>
-                      <Badge className={STATUS_STYLE[n.notifStatus] ?? "bg-white/10 text-white/50"}>
+                      <Badge className={STATUS_STYLE[n.notifStatus] ?? "bg-foreground/10 text-foreground/50"}>
                         {n.notifStatus}
                       </Badge>
-                      <Badge className="bg-white/5 text-white/40 border-white/10 text-xs">
+                      <Badge className="bg-foreground/5 text-foreground/40 border-border/30 text-xs">
                         {n.paymentStatus}
                       </Badge>
                     </div>
                     {n.subject && (
-                      <p className="text-xs text-white/50 font-medium mb-0.5">{n.subject}</p>
+                      <p className="text-xs text-foreground/60 font-semibold mb-0.5">{n.subject}</p>
                     )}
-                    <p className="text-sm text-white/80">{n.message}</p>
-                    <p className="text-xs text-white/30 mt-1 font-mono">
+                    <p className="text-sm text-foreground/80">{n.message}</p>
+                    <p className="text-xs text-foreground/30 mt-1.5 font-mono">
                       txn: {n.txnId?.slice(0, 20)}…
                     </p>
                   </div>
-                  <span className="text-xs text-white/30 shrink-0">
+                  <span className="text-xs text-foreground/40 shrink-0 mt-1">
                     {n.createdAt ? new Date(n.createdAt).toLocaleTimeString() : ""}
                   </span>
                 </div>

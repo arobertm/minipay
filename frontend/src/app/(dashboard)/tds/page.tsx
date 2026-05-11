@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Loader2, ShieldCheck, ShieldAlert, Lock } from "lucide-react";
 
 interface AuthResult {
   acsTransID: string;
@@ -36,10 +36,17 @@ interface ChallengeResult {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  Y: "Frictionless — Authentication Successful",
-  C: "Challenge Required",
-  N: "Not Authenticated",
+  Y: "Frictionless — Autentificare reușită",
+  C: "Challenge necesar",
+  N: "Neautentificat",
   U: "Authentication Could Not Be Performed",
+};
+
+const STATUS_COLORS: Record<string, { border: string; bg: string; text: string }> = {
+  Y: { border: "border-emerald-500/30", bg: "bg-emerald-500/10", text: "text-emerald-400" },
+  C: { border: "border-amber-500/30", bg: "bg-amber-500/10", text: "text-amber-400" },
+  N: { border: "border-red-500/30", bg: "bg-red-500/10", text: "text-red-400" },
+  U: { border: "border-red-500/30", bg: "bg-red-500/10", text: "text-red-400" },
 };
 
 export default function TdsPage() {
@@ -74,7 +81,6 @@ export default function TdsPage() {
     onSuccess: (data) => {
       setAuthResult(data);
       if (data.transStatus === "C") {
-        // Fetch challenge session (contains demo OTP)
         api.get<ChallengeSession>(`/tds/challenge/${data.acsTransID}`)
           .then((r) => { setChallengeSession(r.data); setOtpOpen(true); })
           .catch(() => setOtpOpen(true));
@@ -90,8 +96,7 @@ export default function TdsPage() {
 
   const challengeMut = useMutation({
     mutationFn: () =>
-      api.post<ChallengeResult>(`/tds/challenge/${authResult?.acsTransID}`, { otp })
-        .then((r) => r.data),
+      api.post<ChallengeResult>(`/tds/challenge/${authResult?.acsTransID}`, { otp }).then((r) => r.data),
     onSuccess: (data) => {
       setFinalResult(data);
       setOtpOpen(false);
@@ -104,103 +109,119 @@ export default function TdsPage() {
   const f = (k: keyof typeof form, v: string | number) => setForm((p) => ({ ...p, [k]: v }));
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">3DS2 Challenge</h1>
-        <p className="text-white/40 text-sm mt-1">
-          Risk-based — frictionless (fraudScore &lt; 0.7) or OTP challenge (≥ 0.7)
+    <div className="space-y-8 p-6">
+      <div className="fadeIn">
+        <h1 className="text-4xl font-display font-bold text-foreground">3DS2 Challenge</h1>
+        <p className="text-foreground/60 text-base mt-2 font-medium">
+          Bazat pe risc — frictionless (fraudScore &lt; 0.7) sau challenge OTP (≥ 0.7)
         </p>
       </div>
 
-      <div className="max-w-lg space-y-4">
-        <div className="rounded-xl border border-white/10 bg-[#1a1d27] p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Authentication Request</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5 col-span-2">
-              <Label>Card Number (masked)</Label>
-              <Input value={form.acctNumber} onChange={(e) => f("acctNumber", e.target.value)} className="bg-white/5 border-white/10 font-mono" />
+      <div className="max-w-xl space-y-5">
+        <div className="card-premium space-y-5 fadeIn stagger-1">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-500/20">
+              <Lock size={18} className="text-amber-400" />
             </div>
-            <div className="space-y-1.5">
-              <Label>Amount (minor units)</Label>
-              <Input type="number" value={form.purchaseAmount} onChange={(e) => f("purchaseAmount", parseInt(e.target.value))} className="bg-white/5 border-white/10" />
+            <h2 className="text-base font-display font-semibold">Cerere de autentificare</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2 col-span-2">
+              <Label className="text-foreground/70 font-medium">Număr card (mascat)</Label>
+              <Input value={form.acctNumber} onChange={(e) => f("acctNumber", e.target.value)} className="font-mono" />
             </div>
-            <div className="space-y-1.5">
-              <Label>Currency</Label>
-              <Input value={form.purchaseCurrency} onChange={(e) => f("purchaseCurrency", e.target.value)} className="bg-white/5 border-white/10" />
+            <div className="space-y-2">
+              <Label className="text-foreground/70 font-medium">Sumă (unități minore)</Label>
+              <Input type="number" value={form.purchaseAmount} onChange={(e) => f("purchaseAmount", parseInt(e.target.value))} />
             </div>
-            <div className="space-y-1.5 col-span-2">
-              <Label>Fraud Score (0.0–1.0)</Label>
+            <div className="space-y-2">
+              <Label className="text-foreground/70 font-medium">Currency</Label>
+              <Input value={form.purchaseCurrency} onChange={(e) => f("purchaseCurrency", e.target.value)} />
+            </div>
+            <div className="space-y-2 col-span-2">
+              <Label className="text-foreground/70 font-medium">Fraud Score (0.0 – 1.0)</Label>
               <Input type="number" step="0.01" min="0" max="1" value={form.fraudScore}
-                onChange={(e) => f("fraudScore", parseFloat(e.target.value))} className="bg-white/5 border-white/10" />
-              <p className="text-xs text-white/30">≥ 0.7 triggers OTP challenge · &lt; 0.7 = frictionless</p>
+                onChange={(e) => f("fraudScore", parseFloat(e.target.value))} />
+              <p className="text-xs text-foreground/40">
+                ≥ 0.7 triggers OTP challenge · &lt; 0.7 = frictionless
+              </p>
             </div>
           </div>
-          <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => authMut.mutate()} disabled={authMut.isPending}>
-            {authMut.isPending ? <><Loader2 size={16} className="animate-spin mr-2" />Authenticating…</> : "Initiate 3DS Authentication"}
+          <Button className="w-full" onClick={() => authMut.mutate()} disabled={authMut.isPending}>
+            {authMut.isPending
+              ? <><Loader2 size={16} className="animate-spin mr-2" />Se autentifică…</>
+              : "Inițiază autentificare 3DS"}
           </Button>
         </div>
 
         {/* Auth result */}
-        {authResult && (
-          <div className={`rounded-xl border p-5 space-y-3 ${
-            authResult.transStatus === "Y" ? "border-green-500/30 bg-green-500/10" :
-            authResult.transStatus === "C" ? "border-yellow-500/30 bg-yellow-500/10" :
-            "border-red-500/30 bg-red-500/10"
-          }`}>
-            <div className="flex items-center gap-3">
-              {authResult.transStatus === "Y"
-                ? <ShieldCheck size={22} className="text-green-400" />
-                : <ShieldAlert size={22} className={authResult.transStatus === "C" ? "text-yellow-400" : "text-red-400"} />}
-              <p className={`font-semibold ${authResult.transStatus === "Y" ? "text-green-400" : authResult.transStatus === "C" ? "text-yellow-400" : "text-red-400"}`}>
-                {STATUS_LABEL[authResult.transStatus] ?? authResult.transStatus}
-              </p>
+        {authResult && (() => {
+          const colors = STATUS_COLORS[authResult.transStatus] ?? STATUS_COLORS.U;
+          return (
+            <div className={`rounded-xl border p-5 space-y-4 fadeIn ${colors.border} ${colors.bg}`}>
+              <div className="flex items-center gap-3">
+                {authResult.transStatus === "Y"
+                  ? <ShieldCheck size={22} className="text-emerald-400" />
+                  : <ShieldAlert size={22} className={colors.text} />}
+                <p className={`font-semibold ${colors.text}`}>
+                  {STATUS_LABEL[authResult.transStatus] ?? authResult.transStatus}
+                </p>
+              </div>
+              <div className="rounded-lg bg-foreground/5 p-3 space-y-1.5 text-xs font-mono text-foreground/50">
+                <p>acsTransID: {authResult.acsTransID}</p>
+                {authResult.authenticationValue && <p>CAVV: {authResult.authenticationValue}</p>}
+                {authResult.eci && <p>ECI: {authResult.eci}</p>}
+              </div>
             </div>
-            <div className="text-xs text-white/40 font-mono space-y-1">
-              <p>acsTransID: {authResult.acsTransID}</p>
-              {authResult.authenticationValue && <p>CAVV: {authResult.authenticationValue}</p>}
-              {authResult.eci && <p>ECI: {authResult.eci}</p>}
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Final challenge result */}
         {finalResult && (
-          <div className={`rounded-xl border p-5 ${finalResult.transStatus === "Y" ? "border-green-500/30 bg-green-500/10" : "border-red-500/30 bg-red-500/10"}`}>
-            <p className={`font-semibold ${finalResult.transStatus === "Y" ? "text-green-400" : "text-red-400"}`}>
-              {finalResult.transStatus === "Y" ? "✅ Challenge passed — authenticated" : "❌ Challenge failed"}
+          <div className={`rounded-xl border p-5 space-y-2 fadeIn ${
+            finalResult.transStatus === "Y"
+              ? "border-emerald-500/30 bg-emerald-500/10"
+              : "border-red-500/30 bg-red-500/10"
+          }`}>
+            <p className={`font-semibold ${finalResult.transStatus === "Y" ? "text-emerald-400" : "text-red-400"}`}>
+              {finalResult.transStatus === "Y" ? "✅ Challenge trecut — autentificat" : "❌ Challenge eșuat"}
             </p>
             {finalResult.authenticationValue && (
-              <p className="text-xs text-white/40 font-mono mt-2">CAVV: {finalResult.authenticationValue}</p>
+              <p className="text-xs text-foreground/40 font-mono">CAVV: {finalResult.authenticationValue}</p>
             )}
-            {finalResult.eci && <Badge className="mt-2 bg-green-500/20 text-green-400 border-green-500/30">ECI: {finalResult.eci}</Badge>}
+            {finalResult.eci && (
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">ECI: {finalResult.eci}</Badge>
+            )}
           </div>
         )}
       </div>
 
       {/* OTP Dialog */}
       <Dialog open={otpOpen} onOpenChange={setOtpOpen}>
-        <DialogContent className="bg-[#1a1d27] border-white/10 text-white max-w-sm">
+        <DialogContent className="bg-card border-border/40 max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShieldAlert size={18} className="text-yellow-400" /> OTP Challenge
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <ShieldAlert size={18} className="text-amber-400" /> Challenge OTP
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-white/50">Enter the one-time password to complete authentication.</p>
+          <p className="text-sm text-foreground/60">Introduceți parola de unică folosință pentru a finaliza autentificarea.</p>
           {challengeSession?.otp_demo_only && (
-            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-center">
-              <p className="text-xs text-yellow-400/70 mb-1">Demo OTP (visible for testing)</p>
-              <p className="text-2xl font-mono font-bold text-yellow-400 tracking-widest">{challengeSession.otp_demo_only}</p>
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center">
+              <p className="text-xs text-amber-400/70 font-semibold mb-2">OTP Demo (vizibil pentru testare)</p>
+              <p className="text-3xl font-mono font-bold text-amber-400 tracking-[0.4em]">
+                {challengeSession.otp_demo_only}
+              </p>
             </div>
           )}
           <Input
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
-            placeholder="Enter OTP"
+            placeholder="Introduceți OTP"
             maxLength={8}
-            className="bg-white/5 border-white/10 text-center text-xl tracking-[0.4em] font-mono"
+            className="text-center text-xl tracking-[0.4em] font-mono"
           />
-          <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => challengeMut.mutate()} disabled={challengeMut.isPending || otp.length < 4}>
-            {challengeMut.isPending ? <><Loader2 size={16} className="animate-spin mr-2" />Verifying…</> : "Verify OTP"}
+          <Button className="w-full" onClick={() => challengeMut.mutate()} disabled={challengeMut.isPending || otp.length < 4}>
+            {challengeMut.isPending ? <><Loader2 size={16} className="animate-spin mr-2" />Se verifică…</> : "Verifică OTP"}
           </Button>
         </DialogContent>
       </Dialog>

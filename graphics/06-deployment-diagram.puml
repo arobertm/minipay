@@ -1,0 +1,154 @@
+@startuml MiniPay - Deployment Diagram
+!theme blueprint
+title MiniPay — Diagrama Deployment (Kubernetes / DigitalOcean)
+
+skinparam nodeBackgroundColor #EAF7EA
+skinparam nodeBorderColor #1E8449
+skinparam componentBackgroundColor #EBF5FB
+skinparam componentBorderColor #2980B9
+skinparam databaseBackgroundColor #FEF9E7
+skinparam databaseBorderColor #B7950B
+skinparam cloudBackgroundColor #F8F9FA
+skinparam cloudBorderColor #7F8C8D
+skinparam arrowColor #2C3E50
+
+cloud "GitHub" {
+  [GitHub Actions CI/CD\n(.github/workflows/ci-cd.yml)] as ci
+  [GitHub Container Registry\nghcr.io/arobertm/minipay/*] as ghcr
+  [Repository\ngithub.com/arobertm/minipay] as repo
+}
+
+cloud "Vercel" {
+  [Next.js Frontend\nTailwind + shadcn/ui\nSSR + Proxy /api/*] as frontend
+}
+
+cloud "GoDaddy DNS" {
+  [api-minipay.online\n→ Droplet IP] as dns
+  [minipay.vercel.app\n(frontend)] as fdns
+}
+
+node "DigitalOcean Droplet\n4 vCPU / 8 GB RAM\nFrankfurt (fra1)\nUbuntu 22.04" {
+
+  node "k3s Kubernetes Cluster\n(single-node control-plane)" {
+
+    node "Namespace: minipay" {
+
+      node "Traefik Ingress Controller" {
+        [Traefik\nTLS Let's Encrypt\napi-minipay.online] as traefik
+      }
+
+      node "Identity — 3 Deployments" {
+        [auth-svc\n:8081\nRS256 + Dilithium3] as auth
+        [user-svc\n:8082\nArgon2id] as usersvc
+        [session-svc\n:8083] as session
+      }
+
+      node "Payments — 7 Deployments" {
+        [gateway-svc :8084] as gw
+        [vault-svc :8085\nAES-256-GCM] as vault
+        [network-svc :8086] as net
+        [issuer-svc :8087] as iss
+        [tds-svc :8088\n3DS2 ACS] as tds
+        [settlement-svc :8094] as sett
+        [psd2-svc :8095\nOpen Banking] as psd2
+      }
+
+      node "Security — 3 Deployments" {
+        [fraud-svc :8090\nPython / XGBoost] as fraud
+        [audit-svc :8091\nSHA-256 Chain] as audit
+        [notif-svc :8093] as notif
+      }
+
+      node "MiniDS — StatefulSet (3 Pods)" {
+        database "minids-0\n:8301 (Leader)\nPVC: 2Gi" as mds0
+        database "minids-1\n:8311 (Replica)\nPVC: 2Gi" as mds1
+        database "minids-2\n:8321 (Replica)\nPVC: 2Gi" as mds2
+      }
+
+      node "Infra — StatefulSets" {
+        database "PostgreSQL 16\n:5432\nPVC: 5Gi" as pg
+        database "Kafka 3.7 KRaft\n:9092\nPVC: 5Gi" as kafka
+      }
+
+      node "Monitoring — 3 Deployments" {
+        [Prometheus :9090] as prom
+        [Grafana :3000] as grafana
+        [Kafka UI :8080] as kafkaui
+      }
+
+      node "Argo CD\n(auto-sync GitOps)" {
+        [Argo CD\nApplication Controller] as argocd
+      }
+    }
+  }
+}
+
+' GitHub CI/CD flow
+repo --> ci : git push → trigger
+ci --> ghcr : docker build + push\n:sha tag
+ci --> repo : update k8s manifests\nimage tags
+argocd --> repo : watch manifests\ngit poll
+argocd --> traefik : kubectl apply\nrolling update
+
+' External access
+frontend --> traefik : HTTPS\n/api/* proxy
+dns --> traefik : A record
+
+' Traefik → services
+traefik --> gw
+traefik --> auth
+traefik --> usersvc
+traefik --> fraud
+traefik --> audit
+traefik --> tds
+traefik --> psd2
+
+' Payment flow
+gw --> vault
+gw --> fraud
+gw --> net
+net --> vault
+net --> iss
+
+' Identity storage
+auth --> mds0
+usersvc --> mds0
+session --> mds0
+vault --> mds0
+
+' Raft replication
+mds0 --> mds1 : Raft AppendEntries
+mds0 --> mds2 : Raft AppendEntries
+
+' DB connections
+iss --> pg
+audit --> pg
+tds --> pg
+sett --> pg
+
+' Kafka
+gw --> kafka : publish payment-events
+kafka --> audit : consume
+kafka --> notif : consume
+kafka --> sett : consume
+kafkaui --> kafka
+
+' Monitoring
+prom --> gw
+prom --> fraud
+grafana --> prom
+
+note bottom of mds0
+  Headless Service DNS:
+  minids-0.minids.minipay.svc.cluster.local
+  minids-1.minids.minipay.svc.cluster.local
+  minids-2.minids.minipay.svc.cluster.local
+end note
+
+note bottom of argocd
+  GitOps: orice push pe main →
+  Argo CD detecteaza manifest change →
+  rolling update automat (~2 min)
+end note
+
+@enduml

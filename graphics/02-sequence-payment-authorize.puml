@@ -1,0 +1,111 @@
+@startuml MiniPay - Payment Authorization Sequence
+!theme blueprint
+title MiniPay — Secventa: Autorizare Plata (Happy Path)
+
+skinparam sequenceArrowThickness 2
+skinparam sequenceGroupBorderColor #2C3E50
+skinparam sequenceLifeLineBorderColor #2980B9
+skinparam sequenceParticipantBackgroundColor #EBF5FB
+skinparam sequenceParticipantBorderColor #2980B9
+skinparam noteBorderColor #F39C12
+skinparam noteBackgroundColor #FEF9E7
+
+actor "Merchant" as M
+participant "gateway-svc\n:8084" as GW #E8F4FD
+participant "vault-svc\n:8085" as VLT #E8F4FD
+participant "fraud-svc\n:8090\n(Python)" as FRD #FDEDEC
+participant "network-svc\n:8086" as NET #E8F4FD
+participant "issuer-svc\n:8087" as ISS #E8F4FD
+participant "MiniDS\n:8301" as MDS #FEF9E7
+database "PostgreSQL" as PG #FEF9E7
+queue "Kafka\npayment-events" as KFK #FDEDEC
+participant "audit-svc\n:8091" as AUD #E8F4FD
+participant "notif-svc\n:8093" as NOT #E8F4FD
+
+== Initiere ==
+
+M -> GW : POST /v1/payments/authorize\n{ pan, expiryDate, amount, currency, merchantId }
+activate GW
+note right of GW : JWT validat\nBearer token OAuth2
+
+== Step 1: Tokenizare PAN ==
+
+GW -> VLT : POST /vault/tokenize\n{ pan, expiryDate }
+activate VLT
+VLT -> MDS : store { dpan, encPan(AES-256-GCM), bin }
+activate MDS
+MDS --> VLT : 200 OK
+deactivate MDS
+VLT --> GW : { dpan: "411111XXXXX1234" }
+deactivate VLT
+note right of VLT : PAN original NICIODATA\npastreaza in gateway
+
+== Step 2: Fraud Scoring ==
+
+GW -> FRD : POST /fraud/score\n{ dpan, amount, currency, merchantId, ipAddress }
+activate FRD
+FRD -> FRD : XGBoost.predict(features)\n+ SHAP.TreeExplainer
+FRD --> GW : { score: 0.12, decision: "ALLOW",\nreasons: [...] }
+deactivate FRD
+
+alt score >= 0.8 (HIGH RISK)
+  GW --> M : 200 { status: BLOCKED,\nfraudScore: 0.87,\nreasons: [SHAP explanations] }
+  note right : GDPR Art.22\nexplicatie furnizata
+else score >= 0.5 (MEDIUM RISK)
+  GW --> M : 200 { status: CHALLENGE,\nacsTransId: "uuid" }
+  note right : Merchant redirecteaza\nla 3DS2 OTP flow
+else score < 0.5 (LOW RISK — Happy Path)
+
+== Step 3: Autorizare Retea ==
+
+  GW -> NET : POST /network/authorize\n{ dpan, expiryDate, amount, currency, txnId }
+  activate NET
+
+  NET -> VLT : POST /vault/detokenize/{dpan}
+  activate VLT
+  VLT -> MDS : get encPan by dpan
+  activate MDS
+  MDS --> VLT : { encPan }
+  deactivate MDS
+  VLT --> NET : { pan: "4111111111111111" }
+  deactivate VLT
+
+  NET -> ISS : POST /issuer/authorize\n{ pan, expiryDate, amount, currency }
+  activate ISS
+  ISS -> PG : SELECT card WHERE pan=?\nCHECK status, balance, dailyLimit
+  activate PG
+  PG --> ISS : CardAccount { status:ACTIVE,\nbalance:500000, dailySpent:0 }
+  deactivate PG
+  ISS -> PG : UPDATE balance -= amount\nUPDATE dailySpent += amount
+  ISS --> NET : { responseCode: "00",\nauthCode: "DEA161" }
+  deactivate ISS
+
+  NET --> GW : { isApproved: true,\nresponseCode: "00", authCode: "DEA161" }
+  deactivate NET
+
+== Step 4: Publish Events (async) ==
+
+  GW ->> KFK : PaymentAuditEvent\n{ txnId, status:AUTHORIZED,\namount, fraudScore }
+  note right : Fire-and-forget\nNu blocheaza raspunsul
+
+  KFK ->> AUD : consume event
+  activate AUD
+  AUD -> PG : INSERT audit_entry\n{ seq++, entryHash=SHA256(...+prevHash) }
+  deactivate AUD
+
+  KFK ->> NOT : consume event
+  activate NOT
+  NOT -> NOT : generate EMAIL notification
+  deactivate NOT
+
+== Raspuns Final ==
+
+  GW --> M : 200 OK\n{\n  txnId: "550e8400-...",\n  status: "AUTHORIZED",\n  isoResponseCode: "00",\n  authCode: "DEA161",\n  fraudScore: 0.12,\n  amount: 15000,\n  currency: "RON",\n  timestamp: "2026-05-11T14:30:00Z"\n}
+
+end
+
+deactivate GW
+
+note over M, NOT : Timp total (happy path): ~180ms\nTokenizare: ~20ms | Fraud: ~40ms | Network: ~80ms | Kafka: async
+
+@enduml

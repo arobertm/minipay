@@ -1,0 +1,75 @@
+@startuml MiniPay - Audit Hash Chain
+!theme blueprint
+title MiniPay — Secventa: Audit Log Hash Chain (Tamper Detection)
+
+skinparam sequenceArrowThickness 2
+skinparam sequenceParticipantBackgroundColor #EBF5FB
+skinparam sequenceParticipantBorderColor #2980B9
+skinparam noteBorderColor #C0392B
+skinparam noteBackgroundColor #FDEDEC
+
+participant "gateway-svc" as GW #E8F4FD
+queue "Kafka\npayment-events" as KFK #FDEDEC
+participant "audit-svc\n:8091" as AUD #E8F4FD
+database "PostgreSQL\naudit_entries" as PG #FEF9E7
+actor "Admin / Auditor" as ADM
+
+== Append la fiecare plata ==
+
+group Tranzactie 1 (Genesis)
+  GW ->> KFK : PaymentAuditEvent { txnId:"txn-001", status:"AUTHORIZED", amount:15000 }
+  KFK ->> AUD : consume
+  activate AUD
+  AUD -> PG : SELECT MAX(sequenceNumber), entryHash as prevHash
+  note right of AUD : Prima intrare:\nprevHash = "00000...0000" (64 zerouri)
+  AUD -> AUD : entryHash = SHA256(\n  "1" + "txn-001" + "AUTHORIZED" +\n  "15000" + "RON" + "MERCH_01" +\n  "0.12" + timestamp +\n  "00000...0000"\n)
+  AUD -> PG : INSERT { seq:1, txnId:"txn-001",\nprevHash:"0000...0000",\nentryHash:"a3f8c2..." }
+  deactivate AUD
+end
+
+group Tranzactia 2
+  GW ->> KFK : PaymentAuditEvent { txnId:"txn-002", status:"BLOCKED", amount:999900 }
+  KFK ->> AUD : consume
+  activate AUD
+  AUD -> PG : SELECT entryHash WHERE seq=1 → "a3f8c2..."
+  AUD -> AUD : entryHash = SHA256(\n  "2" + "txn-002" + "BLOCKED" +\n  "999900" + ... +\n  "a3f8c2..."    ← prevHash\n)
+  AUD -> PG : INSERT { seq:2, txnId:"txn-002",\nprevHash:"a3f8c2...",\nentryHash:"b7d1e9..." }
+  deactivate AUD
+end
+
+note over GW, PG : Lantul creste la fiecare plata.\nFiecare entry include hash-ul celui anterior.
+
+== Verificare integritate (normal) ==
+
+ADM -> AUD : GET /audit/verify
+activate AUD
+AUD -> PG : SELECT * FROM audit_entries ORDER BY seq
+activate PG
+PG --> AUD : [ {seq:1, entryHash:"a3f8c2...", prevHash:"0000..."}, \n  {seq:2, entryHash:"b7d1e9...", prevHash:"a3f8c2..."}, ... ]
+deactivate PG
+
+loop pentru fiecare entry
+  AUD -> AUD : computed = SHA256(seq + txnId + status + ...\n              + prevHash)
+  AUD -> AUD : assert computed == entry.entryHash
+end
+
+AUD --> ADM : { isValid: true, chainLength: 47 }
+deactivate AUD
+
+== Simulare alterare (Demo Disertatie) ==
+
+ADM -> PG : [DIRECT SQL]\nUPDATE audit_entries\nSET amount=1\nWHERE txnId='txn-002'
+note right : Atacatorul modifica suma\ndin 999900 → 1 centim
+
+ADM -> AUD : GET /audit/verify
+activate AUD
+AUD -> PG : SELECT * FROM audit_entries ORDER BY seq
+AUD -> AUD : Recalculeaza entry seq=2:\ncomputed = SHA256("2"+"txn-002"+"BLOCKED"+"1"+...+"a3f8c2...")
+AUD -> AUD : computed = "cc4412..." ≠ stored "b7d1e9..."\n→ MISMATCH DETECTAT!
+
+AUD --> ADM : {\n  isValid: false,\n  firstTamperedAt: 2,\n  txnId: "txn-002",\n  message: "Hash mismatch la sequenceNumber=2"\n}
+deactivate AUD
+
+note over ADM : Alterarea a fost detectata instant.\nNicio modificare retroactiva nu poate trece\nneobservata fara a recalcula intregul lant\n(imposibil fara cheia SHA-256 interna).
+
+@enduml

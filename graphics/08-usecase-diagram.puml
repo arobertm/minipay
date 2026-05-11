@@ -1,0 +1,100 @@
+@startuml MiniPay - Use Case Diagram
+!theme blueprint
+title MiniPay — Diagrama Cazurilor de Utilizare
+
+skinparam actorBackgroundColor #EBF5FB
+skinparam actorBorderColor #2980B9
+skinparam usecaseBackgroundColor #EAF7EA
+skinparam usecaseBorderColor #1E8449
+skinparam packageBackgroundColor #F8F9FA
+skinparam packageBorderColor #7F8C8D
+
+left to right direction
+
+actor "Merchant\n(API Client)" as merchant
+actor "Cardholder" as cardholder
+actor "Administrator" as admin
+actor "TPP\n(Third Party Provider\nPSD2)" as tpp
+
+rectangle "MiniPay Payment Gateway" {
+
+  package "Identity & Access" {
+    usecase "Inregistrare utilizator\n(POST /users)" as UC1
+    usecase "Autentificare OAuth2\n(POST /oauth2/token)" as UC2
+    usecase "Gestionare sesiuni\n(creare / revocare)" as UC3
+    usecase "JWT Post-Quantum\n(Dilithium3)" as UC4
+  }
+
+  package "Procesare Plati" {
+    usecase "Autorizeaza plata\n(POST /v1/payments/authorize)" as UC5
+    usecase "Tokenizeaza PAN → DPAN\n(AES-256-GCM)" as UC6
+    usecase "Detecteaza frauda\n(XGBoost + SHAP)" as UC7
+    usecase "3DS2 Challenge OTP\n(risc mediu)" as UC8
+    usecase "Captureaza plata\n(POST /capture)" as UC9
+    usecase "Ramburseaza plata\n(POST /refund)" as UC10
+    usecase "Verifica status plata\n(GET /payments/{id})" as UC11
+  }
+
+  package "Securitate & Conformitate" {
+    usecase "Audit log imutabil\n(SHA-256 hash chain)" as UC12
+    usecase "Verifica integritate audit\n(GET /audit/verify)" as UC13
+    usecase "Demo tamper detection\n(POST /audit/tamper-demo)" as UC14
+    usecase "Primeste notificari\n(email / push)" as UC15
+  }
+
+  package "Clearing & Raportare" {
+    usecase "Vizualizeaza batches zilnice\n(GET /settlements/batches)" as UC16
+    usecase "Reconciliere on-demand\n(POST /settlements/reconcile)" as UC17
+  }
+
+  package "Open Banking (PSD2)" {
+    usecase "Creeaza consent AIS/PIS\n(POST /psd2/consents)" as UC18
+    usecase "Acceseaza balante\n(GET /psd2/accounts/{id}/balances)" as UC19
+    usecase "Initiaza plata SEPA\n(POST /psd2/payments/sepa)" as UC20
+  }
+
+  package "Monitoring" {
+    usecase "Dashboard Grafana\n(metrici real-time)" as UC21
+    usecase "Prometheus metrics\n(/actuator/prometheus)" as UC22
+  }
+}
+
+' Merchant interactions
+merchant --> UC5
+merchant --> UC9
+merchant --> UC10
+merchant --> UC11
+merchant --> UC2
+merchant --> UC16
+merchant --> UC17
+
+' Cardholder interactions
+cardholder --> UC1
+cardholder --> UC2
+cardholder --> UC3
+cardholder --> UC8
+cardholder --> UC15
+
+' Admin interactions
+admin --> UC13
+admin --> UC14
+admin --> UC21
+admin --> UC22
+admin --> UC16
+
+' TPP (PSD2) interactions
+tpp --> UC18
+tpp --> UC19
+tpp --> UC20
+tpp --> UC2
+
+' Include relations
+UC5 .> UC6 : <<include>>
+UC5 .> UC7 : <<include>>
+UC7 .> UC8 : <<extend>>\n[score ≥ 0.5]
+UC5 .> UC12 : <<include>>\n[via Kafka]
+
+' Extend relations
+UC4 .> UC2 : <<extend>>
+
+@enduml

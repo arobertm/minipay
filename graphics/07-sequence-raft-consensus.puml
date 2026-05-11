@@ -1,0 +1,88 @@
+@startuml MiniPay - Raft Consensus Sequence
+!theme blueprint
+title MiniPay — MiniDS: Raft Consensus (Scriere + Failover)
+
+skinparam sequenceArrowThickness 2
+skinparam sequenceParticipantBackgroundColor #EBF5FB
+skinparam sequenceParticipantBorderColor #2980B9
+skinparam noteBorderColor #F39C12
+skinparam noteBackgroundColor #FEF9E7
+skinparam sequenceGroupBorderColor #1A5276
+
+participant "Client\n(vault-svc)" as C
+participant "minids-0\n:8301\nLEADER" as L #A9DFBF
+participant "minids-1\n:8311\nREPLICA" as R1 #EBF5FB
+participant "minids-2\n:8321\nREPLICA" as R2 #EBF5FB
+
+== Log Replication (Scriere normala) ==
+
+C -> L : POST /minids/v1/entries\n{ dn:"dpan=4111...", attributes:{encPan:..., bin:...} }
+activate L
+note right of L : Leader primeste cererea\nO adauga in WAL (Write-Ahead Log)
+
+L -> R1 : AppendEntries RPC\n{ term:5, entry: "store dpan=4111..." }
+L -> R2 : AppendEntries RPC\n{ term:5, entry: "store dpan=4111..." }
+activate R1
+activate R2
+
+R1 -> R1 : append to local WAL
+R2 -> R2 : append to local WAL
+
+R1 --> L : ACK (term:5, success:true)
+R2 --> L : ACK (term:5, success:true)
+deactivate R1
+deactivate R2
+
+note right of L : Majority (2/3) confirmat\n→ COMMIT entry in RocksDB
+
+L -> L : commit → aplica in RocksDB
+L --> C : 201 Created { dn:"dpan=4111..." }
+deactivate L
+
+note over C, R2 : Citirile (GET) sunt locale pe fiecare nod\n(eventual consistency — performanta maxima)
+
+== Heartbeat (mentinere leadership) ==
+
+loop la fiecare 150ms
+  L -> R1 : Heartbeat (AppendEntries empty)
+  L -> R2 : Heartbeat (AppendEntries empty)
+  R1 --> L : ACK
+  R2 --> L : ACK
+end
+
+== Leader Failover (Raft Election) ==
+
+note over L : minids-0 CRAPA\n(pod killed / nod restartat)
+
+L ->x R1 : (heartbeat timeout — nu mai primeste)
+L ->x R2 : (heartbeat timeout — nu mai primeste)
+
+note over R1, R2 : ElectionTimeout expirat (~300ms)\nminids-1 initiaza electie
+
+R1 -> R1 : term++ (term:6)\nstatus = CANDIDATE
+R1 -> R2 : RequestVote { term:6, candidateId:"minids-1" }
+activate R2
+R2 --> R1 : VoteGranted { term:6 }
+deactivate R2
+
+note right of R1 : Majority (1 vot + self = 2/3)\n→ minids-1 devine LEADER
+
+R1 -> R1 : status = LEADER (term:6)
+activate R1
+
+R1 -> R2 : AppendEntries (heartbeat)\n{ term:6, leaderId:"minids-1" }
+R2 --> R1 : ACK — accepta noul leader
+
+note over C : vault-svc detecteaza ca minids-0 nu raspunde\n→ retry pe minids-1 (headless DNS round-robin)
+
+C -> R1 : POST /minids/v1/entries (retry)
+R1 -> R2 : AppendEntries RPC
+R2 --> R1 : ACK
+R1 -> R1 : commit in RocksDB
+R1 --> C : 201 Created
+
+deactivate R1
+
+note over C, R2 : DOWNTIME: ~300ms (election timeout)\nDate: NICIUNA pierduta (majority rule garanteaza)\nminids-0 se restarteaza si se resincronizeaza automat
+
+@enduml

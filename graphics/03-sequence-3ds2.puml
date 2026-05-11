@@ -1,0 +1,83 @@
+@startuml MiniPay - 3DS2 Authentication Sequence
+!theme blueprint
+title MiniPay — Secventa: 3DS2 Challenge Flow
+
+skinparam sequenceArrowThickness 2
+skinparam sequenceParticipantBackgroundColor #EBF5FB
+skinparam sequenceParticipantBorderColor #2980B9
+skinparam noteBorderColor #F39C12
+skinparam noteBackgroundColor #FEF9E7
+
+actor "Cardholder" as CH
+actor "Merchant\nFrontend" as M
+participant "gateway-svc\n:8084" as GW #E8F4FD
+participant "fraud-svc\n:8090" as FRD #FDEDEC
+participant "tds-svc\n:8088\n(ACS)" as TDS #E8F4FD
+database "PostgreSQL\ntds_challenges" as PG #FEF9E7
+participant "network-svc\n:8086" as NET #E8F4FD
+participant "issuer-svc\n:8087" as ISS #E8F4FD
+
+== Detectare risc mediu ==
+
+M -> GW : POST /v1/payments/authorize\n{ pan, amount: 75000 RON }
+activate GW
+GW -> FRD : score(dpan, amount=75000)
+activate FRD
+FRD --> GW : { score: 0.63, decision: "CHALLENGE" }
+deactivate FRD
+note right of FRD : 0.5 ≤ score < 0.8\n→ 3DS2 necesar
+
+GW --> M : 200 { status: "CHALLENGE",\ntxnId: "txn-789",\nacsTransId: "acs-456" }
+deactivate GW
+
+== Initiere Challenge 3DS2 ==
+
+M -> TDS : POST /3ds/authenticate\n{ acsTransId: "acs-456", pan, amount }
+activate TDS
+TDS -> TDS : generate OTP = 6 cifre random\nexpiresAt = now + 5 minute
+TDS -> PG : INSERT challenge_session\n{ acsTransId, otp, status:CHALLENGE_REQUIRED }
+TDS --> M : { acsTransId: "acs-456",\nstatus: "CHALLENGE_REQUIRED",\nmessage: "Introduceti codul OTP" }
+deactivate TDS
+
+M -> CH : Afiseaza input OTP\n"Codul a fost trimis pe telefonul dvs."
+
+note over CH : In productie: OTP trimis via SMS\nIn demo: GET /3ds/challenge/{id} expune OTP
+
+== Verificare OTP ==
+
+CH -> M : Introduce OTP: "482951"
+M -> TDS : POST /3ds/challenge/acs-456\n{ otp: "482951" }
+activate TDS
+TDS -> PG : SELECT challenge WHERE acsTransId=?\nCHECK otp match + not expired
+activate PG
+PG --> TDS : { otp:"482951", expiresAt: valid }
+deactivate PG
+
+alt OTP corect + neexpirat
+  TDS -> PG : UPDATE status = AUTHENTICATED
+  TDS --> M : { status: "AUTHENTICATED",\nacsTransId: "acs-456" }
+  note right : CAVV generat\n(Cardholder Auth Verification Value)
+  deactivate TDS
+
+  == Continuare autorizare ==
+
+  M -> GW : POST /v1/payments/{txnId}/resume\n{ acsTransId: "acs-456" }
+  activate GW
+  GW -> NET : authorize (dupa 3DS confirmat)
+  activate NET
+  NET -> ISS : authorize
+  ISS --> NET : { "00", authCode }
+  NET --> GW : approved
+  deactivate NET
+  GW --> M : { status: "AUTHORIZED", authCode: "F3A291" }
+  deactivate GW
+
+else OTP gresit (max 3 incercari)
+  TDS --> M : { status: "FAILED",\nmessage: "OTP incorect" }
+  note right : Dupa 3 incercari:\nstatus = BLOCKED
+
+else OTP expirat (> 5 minute)
+  TDS --> M : { status: "EXPIRED",\nmessage: "Sesiune expirata" }
+end
+
+@enduml

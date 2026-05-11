@@ -1,0 +1,122 @@
+@startuml MiniPay - Component Diagram
+!theme blueprint
+title MiniPay — Diagrama Componentelor
+
+skinparam componentStyle rectangle
+skinparam backgroundColor #FAFAFA
+skinparam component {
+  BackgroundColor #E8F4FD
+  BorderColor #2980B9
+  FontColor #1A252F
+}
+skinparam package {
+  BackgroundColor #EBF5FB
+  BorderColor #1A5276
+}
+skinparam database {
+  BackgroundColor #FEF9E7
+  BorderColor #B7950B
+}
+skinparam queue {
+  BackgroundColor #FDEDEC
+  BorderColor #C0392B
+}
+skinparam node {
+  BackgroundColor #EAF7EA
+  BorderColor #1E8449
+}
+
+actor "Merchant / Frontend\n(Vercel)" as merchant
+actor "Cardholder" as user
+
+node "DigitalOcean Droplet\nk3s Kubernetes" {
+
+  package "IDENTITY DOMAIN" {
+    [auth-svc\n:8081\nOAuth2/OIDC\nRS256 + Dilithium3] as auth
+    [user-svc\n:8082\nArgon2id\nRBAC] as usersvc
+    [session-svc\n:8083\nTTL 1h\nMulti-device] as session
+  }
+
+  package "PAYMENTS DOMAIN" {
+    [gateway-svc\n:8084\nOrchestrator\n★ Entry Point] as gateway
+    [vault-svc\n:8085\nAES-256-GCM\nPAN→DPAN] as vault
+    [network-svc\n:8086\nISO 8583\nBIN Routing] as network
+    [issuer-svc\n:8087\nBank Simulator\nBalance Check] as issuer
+    [tds-svc\n:8088\n3DS2 ACS\nOTP Challenge] as tds
+    [settlement-svc\n:8094\nDaily Clearing\nMerchant Batches] as settlement
+    [psd2-svc\n:8095\nOpen Banking\nAIS + PIS] as psd2
+  }
+
+  package "SECURITY DOMAIN" {
+    [fraud-svc\n:8090\nPython / FastAPI\nXGBoost + SHAP] as fraud
+    [audit-svc\n:8091\nSHA-256\nHash Chain] as audit
+    [notif-svc\n:8093\nEmail + Push\nKafka Consumer] as notif
+  }
+
+  package "DATA LAYER" {
+    database "MiniDS Cluster\nMicroRaft 0.7\nRocksDB 9.0" as minids {
+      [minids-0\n:8301 (Leader)]
+      [minids-1\n:8311 (Replica)]
+      [minids-2\n:8321 (Replica)]
+    }
+    database "PostgreSQL 16\n:5432" as postgres
+    queue "Apache Kafka 3.7\n:9092 (KRaft)\ntopic: payment-events" as kafka
+  }
+
+  package "MONITORING" {
+    [Prometheus\n:9090] as prom
+    [Grafana\n:3000] as grafana
+    [Kafka UI\n:8080] as kafkaui
+  }
+
+  [Traefik Ingress\napi-minipay.online\nTLS Let's Encrypt] as traefik
+}
+
+' External connections
+merchant --> traefik : HTTPS
+user --> traefik : HTTPS (3DS2)
+
+' Traefik routing
+traefik --> gateway
+traefik --> auth
+traefik --> usersvc
+traefik --> audit
+traefik --> fraud
+traefik --> psd2
+traefik --> tds
+
+' Payment flow (sync REST)
+gateway --> vault : tokenize PAN
+gateway --> fraud : fraud score
+gateway --> network : authorize
+gateway --> tds : 3DS2 challenge
+network --> vault : detokenize DPAN
+network --> issuer : authorize card
+
+' Identity
+auth --> usersvc : validate user
+auth --> session : create session
+usersvc --> minids : CRUD ou=users
+session --> minids : CRUD ou=sessions
+auth --> minids : OAuth2 clients
+vault --> minids : store tokens\nou=vault
+
+' Kafka async
+gateway ..> kafka : publish PaymentAuditEvent
+kafka ..> audit : consume
+kafka ..> notif : consume
+kafka ..> settlement : consume
+
+' Databases
+issuer --> postgres : card accounts
+audit --> postgres : audit_entries
+tds --> postgres : challenge sessions
+settlement --> postgres : settlement batches
+
+' Monitoring
+prom --> gateway : scrape /actuator
+prom --> fraud : scrape /metrics
+grafana --> prom : query
+kafkaui --> kafka : monitor
+
+@enduml

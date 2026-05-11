@@ -28,7 +28,7 @@ export default function Psd2Page() {
   const [paymentResult, setPaymentResult] = useState<{ paymentId: string; status: string } | null>(null);
 
   const consentMut = useMutation({
-    mutationFn: () => psd2.createConsent(userId, [iban]),
+    mutationFn: () => psd2.createConsent(userId, [iban], ["ReadAccountList", "ReadBalances", "ReadTransactions"], new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]),
     onSuccess: (d) => { setCreatedConsent(d.consentId); setConsentId(d.consentId); toast.success("Consent created"); },
     onError: () => toast.error("Consent creation failed"),
   });
@@ -110,7 +110,7 @@ export default function Psd2Page() {
                     <div key={a.accountId} className="py-4 flex items-center justify-between">
                       <div>
                         <p className="font-mono text-sm font-semibold text-foreground">{a.iban}</p>
-                        <p className="text-xs text-foreground/50 mt-1">{a.ownerName} · {a.currency}</p>
+                        <p className="text-xs text-foreground/50 mt-1">{a.currency}</p>
                       </div>
                       <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 font-mono">
                         {a.accountId.slice(0, 8)}

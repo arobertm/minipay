@@ -82,7 +82,7 @@ spec:
             - name: RAFT_RESOLVE_LOCALHOST
               value: "false"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=64m"
+              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=64m -XX:ReservedCodeCacheSize=32m"
           startupProbe:
             httpGet:
               path: /minids/v1/health
@@ -109,7 +109,7 @@ spec:
               memory: 96Mi
               cpu: 100m
             limits:
-              memory: 256Mi
+              memory: 320Mi
               cpu: 400m
   volumeClaimTemplates:
     - metadata:

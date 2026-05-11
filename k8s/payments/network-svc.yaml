@@ -29,7 +29,7 @@ spec:
             - name: ISSUER_URL
               value: http://issuer-svc:8087
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m"
+              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m"
           startupProbe:
             httpGet:
               path: /actuator/health
@@ -53,7 +53,7 @@ spec:
               memory: 64Mi
               cpu: 75m
             limits:
-              memory: 192Mi
+              memory: 320Mi
               cpu: 300m
 
 ---

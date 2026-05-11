@@ -96,45 +96,137 @@ MiniPay = infrastructura din spate (Payment Gateway)
 ### 3.1 Diagrama arhitecturala
 
 ```
-                            INTERNET
-                                |
-                    ┌───────────┴───────────┐
-                    │  Traefik Ingress       │
-                    │  api-minipay.online    │
-                    │  TLS termination       │
-                    └───────────┬───────────┘
-                                |
-         ┌──────────────────────┼──────────────────────┐
-         |                      |                      |
-         ▼                      ▼                      ▼
-  ┌─────────────┐       ┌──────────────┐       ┌──────────────┐
-  │  IDENTITY   │       │   PAYMENTS   │       │  SECURITY    │
-  ├─────────────┤       ├──────────────┤       ├──────────────┤
-  │ auth-svc    │       │ gateway-svc  │       │ fraud-svc    │
-  │ user-svc    │       │ vault-svc    │       │ audit-svc    │
-  │ session-svc │       │ network-svc  │       │ notif-svc    │
-  └──────┬──────┘       │ issuer-svc   │       │ tds-svc      │
-         |              │ settlement   │       └──────────────┘
-         |              │ psd2-svc     │
-         |              └──────┬───────┘
-         |                     |
-         └─────────────────────┘
-                      |
-         ┌────────────┴────────────────────────┐
-         |                                     |
-┌────────┴──────────┐              ┌───────────┴──────────┐
-│   MiniDS Cluster  │              │  PostgreSQL + Kafka   │
-│   (MicroRaft 0.7) │              │                      │
-├───────────────────┤              │  PostgreSQL 16:      │
-│ minids-0 (Leader) │              │  - issuer-svc        │
-│ minids-1 (Replica)│              │  - audit-svc         │
-│ minids-2 (Replica)│              │  - tds-svc           │
-├───────────────────┤              │  - settlement-svc    │
-│ ou=users          │              │                      │
-│ ou=sessions       │              │  Kafka 3.7 (KRaft):  │
-│ ou=clients        │              │  - payment-events    │
-│ ou=vault          │              │  - audit-events      │
-└───────────────────┘              └──────────────────────┘
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                                   INTERNET                                       ║
+╚══════════════════════════════════════════╦═══════════════════════════════════════╝
+                                           ║
+                          ┌────────────────▼────────────────┐
+                          │         VERCEL (Frontend)        │
+                          │      Next.js 14 + TypeScript     │
+                          │    /dashboard  /shop  /audit     │
+                          └────────────────┬────────────────┘
+                                           │  HTTPS (proxy /api/*)
+                          ┌────────────────▼────────────────┐
+                          │    TRAEFIK INGRESS (k3s)         │
+                          │    api-minipay.online            │
+                          │    TLS Let's Encrypt             │
+                          └──┬──────────┬──────────┬────────┘
+                             │          │          │
+          ┌──────────────────┘          │          └──────────────────┐
+          │                             │                             │
+          ▼                             ▼                             ▼
+┌─────────────────────┐   ┌─────────────────────────┐   ┌─────────────────────┐
+│   IDENTITY DOMAIN   │   │     PAYMENTS DOMAIN      │   │   SECURITY DOMAIN   │
+│   ─────────────── │   │   ─────────────────────  │   │   ───────────────   │
+│                     │   │                         │   │                     │
+│  ┌───────────────┐  │   │  ┌──────────────────┐  │   │  ┌───────────────┐  │
+│  │   auth-svc    │  │   │  │   gateway-svc    │  │   │  │  fraud-svc    │  │
+│  │   :8081       │  │   │  │   :8084  ★       │  │   │  │  :8090        │  │
+│  │  OAuth2/OIDC  │  │   │  │  Orchestrator    │  │   │  │  Python/ML    │  │
+│  │  RS256+PQC    │  │   │  └────────┬─────────┘  │   │  │  XGBoost+SHAP │  │
+│  └───────────────┘  │   │           │ REST        │   │  └───────┬───────┘  │
+│                     │   │    ┌──────┼──────┐      │   │          │          │
+│  ┌───────────────┐  │   │    ▼      ▼      ▼      │   │  ┌───────▼───────┐  │
+│  │   user-svc    │  │   │  ┌──┐  ┌────┐ ┌────┐   │   │  │  audit-svc    │  │
+│  │   :8082       │  │   │  │v │  │fra-│ │net-│   │   │  │  :8091        │  │
+│  │  Argon2id     │  │   │  │au│  │ud  │ │wor │   │   │  │  SHA-256      │  │
+│  │  RBAC         │  │   │  │lt│  │svc │ │k   │   │   │  │  Hash Chain   │  │
+│  └───────────────┘  │   │  └──┘  └────┘ └──┬─┘   │   │  └───────────────┘  │
+│                     │   │ :8085  :8090  :8086│    │   │                     │
+│  ┌───────────────┐  │   │                   ▼    │   │  ┌───────────────┐  │
+│  │  session-svc  │  │   │            ┌──────────┐ │   │  │  notif-svc    │  │
+│  │   :8083       │  │   │            │issuer-svc│ │   │  │  :8093        │  │
+│  │  TTL 1h       │  │   │            │  :8087   │ │   │  │  Email/Push   │  │
+│  │  Multi-device │  │   │            │PostgreSQL│ │   │  └───────────────┘  │
+│  └───────────────┘  │   │            └──────────┘ │   │                     │
+│                     │   │                          │   │  ┌───────────────┐  │
+│                     │   │  ┌──────────────────┐   │   │  │   tds-svc     │  │
+│                     │   │  │   tds-svc :8088  │   │   │  │  :8088  3DS2  │  │
+│                     │   │  │  psd2-svc :8095  │   │   │  │  OTP Challenge│  │
+│                     │   │  │  settl-svc:8094  │   │   │  └───────────────┘  │
+└─────────────────────┘   │  └──────────────────┘   │   └─────────────────────┘
+                          └─────────────────────────┘
+                                       │
+              ┌────────────────────────┼────────────────────────┐
+              │          KAFKA (async) │                         │
+              │  ┌─────────────────────▼──────────────────────┐ │
+              │  │          Apache Kafka 3.7 (KRaft)           │ │
+              │  │             topic: payment-events           │ │
+              │  └────────┬────────────────┬───────────────────┘ │
+              │           │                │                      │
+              │      audit-svc        notif-svc            settlement-svc
+              │      (consume)        (consume)             (consume)
+              │
+              ├─────────────────────────────────────────────────────────────┐
+              │                    DATA LAYER                                │
+              │                                                              │
+              │  ┌──────────────────────────┐   ┌────────────────────────┐  │
+              │  │      MiniDS Cluster       │   │      PostgreSQL 16      │  │
+              │  │   (MicroRaft 0.7 + Raft)  │   │                        │  │
+              │  │  ┌────────┐ ┌─────────┐  │   │  minipay_issuer         │  │
+              │  │  │minids-0│ │minids-1 │  │   │  minipay_audit          │  │
+              │  │  │:8301   │ │:8311    │  │   │  minipay_tds            │  │
+              │  │  │LEADER  │ │REPLICA  │  │   │  minipay_settlement     │  │
+              │  │  └────────┘ └─────────┘  │   │                        │  │
+              │  │       ┌─────────┐        │   └────────────────────────┘  │
+              │  │       │minids-2 │        │                                │
+              │  │       │:8321    │        │   ┌────────────────────────┐  │
+              │  │       │REPLICA  │        │   │      MONITORING         │  │
+              │  │       └─────────┘        │   │  Prometheus  :9090      │  │
+              │  │                          │   │  Grafana     :3000      │  │
+              │  │  ou=users   ou=sessions  │   │  Kafka UI    :8080      │  │
+              │  │  ou=clients ou=vault     │   └────────────────────────┘  │
+              │  │  (RocksDB 9.0 embedded)  │                                │
+              │  └──────────────────────────┘                                │
+              └──────────────────────────────────────────────────────────────┘
+
+Legenda:
+  ★  = entry point principal pentru plati
+  ──►  REST HTTP (sincron, timp real)
+  ···► Kafka (asincron, event-driven)
+  PQC = Post-Quantum Cryptography (CRYSTALS-Dilithium3)
+```
+
+### 3.1.1 Flux de date — Autorizare plata
+
+```
+  Merchant / Frontend
+        │
+        │  POST /v1/payments/authorize
+        │  { pan, amount, currency, merchantId }
+        ▼
+  ┌─────────────┐   tokenize PAN    ┌─────────────┐   store token
+  │ gateway-svc │──────────────────►│  vault-svc  │──────────────► MiniDS
+  │             │◄──────────────────│             │
+  │             │   DPAN returned   └─────────────┘
+  │             │
+  │             │   score(DPAN, amt) ┌─────────────┐
+  │             │──────────────────►│  fraud-svc  │  XGBoost + SHAP
+  │             │◄──────────────────│  (Python)   │
+  │             │   { score, reasons}└─────────────┘
+  │             │
+  │   score≥0.8 │──────────────────────────────────────► BLOCKED (GDPR explanation)
+  │   score≥0.5 │──────────────────────────────────────► CHALLENGE (3DS2 OTP)
+  │   score<0.5 │
+  │             │   authorize(DPAN)  ┌─────────────┐   detokenize   ┌───────────┐
+  │             │──────────────────►│ network-svc │──────────────►│ vault-svc │
+  │             │                   │             │◄──────────────│           │
+  │             │                   │             │   PAN real     └───────────┘
+  │             │                   │             │
+  │             │                   │             │   authorize(PAN) ┌──────────┐
+  │             │                   │             │────────────────►│issuer-svc│
+  │             │                   │             │◄────────────────│PostgreSQL│
+  │             │◄──────────────────│             │  "00"/iso code  └──────────┘
+  │             │   { iso, authCode }└─────────────┘
+  │             │
+  │             │──── Kafka ─────────────────────────► audit-svc (hash chain)
+  │             │──── Kafka ─────────────────────────► notif-svc (email/push)
+  │             │──── Kafka ─────────────────────────► settlement-svc (clearing)
+  └─────────────┘
+        │
+        │  { txnId, status: AUTHORIZED, authCode, fraudScore }
+        ▼
+  Merchant / Frontend
 ```
 
 ### 3.2 Porturi servicii

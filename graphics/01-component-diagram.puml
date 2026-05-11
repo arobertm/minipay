@@ -1,122 +1,163 @@
 @startuml MiniPay - Component Diagram
-!theme blueprint
-title MiniPay — Diagrama Componentelor
+!theme plain
+title MiniPay — Arhitectura Componentelor
 
-skinparam componentStyle rectangle
-skinparam backgroundColor #FAFAFA
-skinparam component {
-  BackgroundColor #E8F4FD
-  BorderColor #2980B9
-  FontColor #1A252F
-}
-skinparam package {
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 50
+skinparam defaultFontSize 11
+skinparam defaultFontName Arial
+
+skinparam rectangle {
   BackgroundColor #EBF5FB
-  BorderColor #1A5276
+  BorderColor #2980B9
+  BorderThickness 1.5
+  FontColor #1B2631
+  RoundCorner 8
 }
 skinparam database {
   BackgroundColor #FEF9E7
-  BorderColor #B7950B
+  BorderColor #D4AC0D
+  BorderThickness 1.5
 }
 skinparam queue {
   BackgroundColor #FDEDEC
   BorderColor #C0392B
+  BorderThickness 1.5
 }
-skinparam node {
-  BackgroundColor #EAF7EA
-  BorderColor #1E8449
+skinparam arrow {
+  Color #2C3E50
+  FontColor #2C3E50
+  FontSize 9
 }
-
-actor "Merchant / Frontend\n(Vercel)" as merchant
-actor "Cardholder" as user
-
-node "DigitalOcean Droplet\nk3s Kubernetes" {
-
-  package "IDENTITY DOMAIN" {
-    [auth-svc\n:8081\nOAuth2/OIDC\nRS256 + Dilithium3] as auth
-    [user-svc\n:8082\nArgon2id\nRBAC] as usersvc
-    [session-svc\n:8083\nTTL 1h\nMulti-device] as session
-  }
-
-  package "PAYMENTS DOMAIN" {
-    [gateway-svc\n:8084\nOrchestrator\n★ Entry Point] as gateway
-    [vault-svc\n:8085\nAES-256-GCM\nPAN→DPAN] as vault
-    [network-svc\n:8086\nISO 8583\nBIN Routing] as network
-    [issuer-svc\n:8087\nBank Simulator\nBalance Check] as issuer
-    [tds-svc\n:8088\n3DS2 ACS\nOTP Challenge] as tds
-    [settlement-svc\n:8094\nDaily Clearing\nMerchant Batches] as settlement
-    [psd2-svc\n:8095\nOpen Banking\nAIS + PIS] as psd2
-  }
-
-  package "SECURITY DOMAIN" {
-    [fraud-svc\n:8090\nPython / FastAPI\nXGBoost + SHAP] as fraud
-    [audit-svc\n:8091\nSHA-256\nHash Chain] as audit
-    [notif-svc\n:8093\nEmail + Push\nKafka Consumer] as notif
-  }
-
-  package "DATA LAYER" {
-    database "MiniDS Cluster\nMicroRaft 0.7\nRocksDB 9.0" as minids {
-      [minids-0\n:8301 (Leader)]
-      [minids-1\n:8311 (Replica)]
-      [minids-2\n:8321 (Replica)]
-    }
-    database "PostgreSQL 16\n:5432" as postgres
-    queue "Apache Kafka 3.7\n:9092 (KRaft)\ntopic: payment-events" as kafka
-  }
-
-  package "MONITORING" {
-    [Prometheus\n:9090] as prom
-    [Grafana\n:3000] as grafana
-    [Kafka UI\n:8080] as kafkaui
-  }
-
-  [Traefik Ingress\napi-minipay.online\nTLS Let's Encrypt] as traefik
+skinparam package {
+  BackgroundColor #F4F6F7
+  BorderColor #95A5A6
+  BorderThickness 1
+  FontStyle bold
+  FontColor #1B2631
+}
+skinparam actor {
+  BackgroundColor #FDFEFE
+  BorderColor #2980B9
 }
 
-' External connections
-merchant --> traefik : HTTPS
-user --> traefik : HTTPS (3DS2)
+' ══════════════════════════════════════
+'  NIVEL 0 — ACTORI EXTERNI
+' ══════════════════════════════════════
 
-' Traefik routing
-traefik --> gateway
-traefik --> auth
-traefik --> usersvc
-traefik --> audit
-traefik --> fraud
-traefik --> psd2
-traefik --> tds
+actor "Merchant\n/ Frontend" as MERCHANT
+actor "Cardholder" as CARDHOLDER
+actor "TPP (PSD2)" as TPP
 
-' Payment flow (sync REST)
-gateway --> vault : tokenize PAN
-gateway --> fraud : fraud score
-gateway --> network : authorize
-gateway --> tds : 3DS2 challenge
-network --> vault : detokenize DPAN
-network --> issuer : authorize card
+' ══════════════════════════════════════
+'  NIVEL 1 — INGRESS
+' ══════════════════════════════════════
 
-' Identity
-auth --> usersvc : validate user
-auth --> session : create session
-usersvc --> minids : CRUD ou=users
-session --> minids : CRUD ou=sessions
-auth --> minids : OAuth2 clients
-vault --> minids : store tokens\nou=vault
+rectangle "  Traefik Ingress\n  api-minipay.online  \n  TLS / Let's Encrypt  " as TRAEFIK #D5F5E3
 
-' Kafka async
-gateway ..> kafka : publish PaymentAuditEvent
-kafka ..> audit : consume
-kafka ..> notif : consume
-kafka ..> settlement : consume
+' ══════════════════════════════════════
+'  NIVEL 2 — DOMENII SERVICII
+' ══════════════════════════════════════
 
-' Databases
-issuer --> postgres : card accounts
-audit --> postgres : audit_entries
-tds --> postgres : challenge sessions
-settlement --> postgres : settlement batches
+package "Identity Domain" as ID_PKG {
+  rectangle "auth-svc\nOAuth2 · OIDC\nRS256 + Dilithium3" as AUTH #EBF5FB
+  rectangle "user-svc\nArgon2id\nRBAC" as USER #EBF5FB
+  rectangle "session-svc\nTTL 1h" as SESS #EBF5FB
+}
 
-' Monitoring
-prom --> gateway : scrape /actuator
-prom --> fraud : scrape /metrics
-grafana --> prom : query
-kafkaui --> kafka : monitor
+package "Payments Domain" as PAY_PKG {
+  rectangle "**gateway-svc  ★**\nOrchestrator\nEntry Point" as GW #D6EAF8
+  rectangle "vault-svc\nAES-256-GCM\nPAN → DPAN" as VAULT #EBF5FB
+  rectangle "fraud-svc\nXGBoost + SHAP\nPython / FastAPI" as FRAUD #FADBD8
+  rectangle "network-svc\nISO 8583\nBIN Routing" as NET #EBF5FB
+  rectangle "issuer-svc\nBank Simulator\nBalance Check" as ISS #EBF5FB
+  rectangle "tds-svc\n3DS2 ACS\nOTP Challenge" as TDS #EBF5FB
+  rectangle "settlement-svc\nDaily Clearing" as SETT #EBF5FB
+  rectangle "psd2-svc\nOpen Banking\nAIS + PIS" as PSD2 #EBF5FB
+}
+
+package "Security Domain" as SEC_PKG {
+  rectangle "audit-svc\nSHA-256\nHash Chain" as AUDIT #EBF5FB
+  rectangle "notif-svc\nEmail + Push" as NOTIF #EBF5FB
+}
+
+' ══════════════════════════════════════
+'  NIVEL 3 — DATE
+' ══════════════════════════════════════
+
+package "Data Layer" as DATA_PKG {
+  database "MiniDS Cluster\nMicroRaft 0.7 + RocksDB 9.0\n(3 noduri: Leader + 2 Replici)" as MINIDS
+  database "PostgreSQL 16\nissuer · audit · tds · settlement" as PG
+  queue "Apache Kafka 3.7\ntopic: payment-events" as KAFKA
+}
+
+' ══════════════════════════════════════
+'  NIVEL 4 — MONITORING
+' ══════════════════════════════════════
+
+package "Monitoring" as MON_PKG {
+  rectangle "Prometheus" as PROM #F4ECF7
+  rectangle "Grafana" as GRAF #F4ECF7
+}
+
+' ══════════════════════════════════════
+'  CONEXIUNI — NIVEL 0 → 1 → 2
+' ══════════════════════════════════════
+
+MERCHANT -down-> TRAEFIK : HTTPS
+CARDHOLDER -down-> TRAEFIK : HTTPS
+TPP -down-> TRAEFIK : HTTPS
+
+TRAEFIK -down-> GW       : /gateway/*
+TRAEFIK -down-> AUTH     : /auth/*
+TRAEFIK -down-> PSD2     : /psd2/*
+TRAEFIK -down-> TDS      : /tds/*
+
+' ══════════════════════════════════════
+'  FLUX PLATA SINCRON (REST)
+' ══════════════════════════════════════
+
+GW -right-> VAULT  : ①tokenize PAN
+GW -down->  FRAUD  : ②fraud score
+GW -right-> NET    : ③authorize
+GW -right-> TDS    : challenge\n(score≥0.5)
+NET -right-> VAULT : detokenize
+NET -right-> ISS   : ④authorize card
+
+' ══════════════════════════════════════
+'  FLUX ASYNC (KAFKA)
+' ══════════════════════════════════════
+
+GW -down[dashed]-> KAFKA    : publish event
+KAFKA -right[dashed]-> AUDIT  : consume
+KAFKA -right[dashed]-> NOTIF  : consume
+KAFKA -right[dashed]-> SETT   : consume
+
+' ══════════════════════════════════════
+'  IDENTITY → MINIDS
+' ══════════════════════════════════════
+
+AUTH  -down-> MINIDS : ou=clients
+USER  -down-> MINIDS : ou=users
+SESS  -down-> MINIDS : ou=sessions
+VAULT -down-> MINIDS : ou=vault
+
+' ══════════════════════════════════════
+'  SERVICII → POSTGRESQL
+' ══════════════════════════════════════
+
+ISS   -down-> PG : card accounts
+AUDIT -down-> PG : audit_entries
+TDS   -down-> PG : challenges
+SETT  -down-> PG : batches
+
+' ══════════════════════════════════════
+'  MONITORING
+' ══════════════════════════════════════
+
+PROM -up[dashed]-> GW    : scrape
+PROM -up[dashed]-> FRAUD : scrape
+GRAF -right-> PROM       : query
 
 @enduml

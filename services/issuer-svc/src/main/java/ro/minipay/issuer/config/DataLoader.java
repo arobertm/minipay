@@ -27,60 +27,35 @@ public class DataLoader implements ApplicationRunner {
 
     private final CardAccountRepository cardRepository;
 
+    record Seed(String pan, String holderName, CardStatus status, long balanceInCents) {}
+
+    private static final List<Seed> SEEDS = List.of(
+        new Seed("4111111111111111", "Ion Popescu",      CardStatus.ACTIVE,   500000L),
+        new Seed("4000000000000002", "Maria Ionescu",    CardStatus.BLOCKED,  500000L),
+        new Seed("4000000000009995", "Andrei Gheorghe",  CardStatus.ACTIVE,        0L),
+        new Seed("5500000000000004", "Elena Constantin", CardStatus.ACTIVE,   500000L)
+    );
+
     @Override
     public void run(ApplicationArguments args) {
-        if (cardRepository.count() > 0) {
-            log.info("Test cards already loaded, skipping seed.");
-            return;
+        int upserted = 0;
+        for (Seed s : SEEDS) {
+            CardAccount card = cardRepository.findByPan(s.pan()).orElseGet(() ->
+                CardAccount.builder()
+                    .pan(s.pan())
+                    .holderName(s.holderName())
+                    .expiryDate("12/28")
+                    .status(s.status())
+                    .dailyLimitInCents(1000000L)
+                    .build()
+            );
+            card.setStatus(s.status());
+            card.setBalanceInCents(s.balanceInCents());
+            card.setDailySpentInCents(0L);
+            card.setLastSpentDate(null);
+            cardRepository.save(card);
+            upserted++;
         }
-
-        List<CardAccount> testCards = List.of(
-            CardAccount.builder()
-                .pan("4111111111111111")
-                .holderName("Ion Popescu")
-                .expiryDate("12/28")
-                .status(CardStatus.ACTIVE)
-                .balanceInCents(500000L)      // 5000.00 RON
-                .dailyLimitInCents(1000000L)  // 10000.00 RON/day
-                .dailySpentInCents(0L)
-                .lastSpentDate(null)
-                .build(),
-
-            CardAccount.builder()
-                .pan("4000000000000002")
-                .holderName("Maria Ionescu")
-                .expiryDate("12/28")
-                .status(CardStatus.BLOCKED)   // always declined — 05 Do Not Honor
-                .balanceInCents(500000L)
-                .dailyLimitInCents(1000000L)
-                .dailySpentInCents(0L)
-                .lastSpentDate(null)
-                .build(),
-
-            CardAccount.builder()
-                .pan("4000000000009995")
-                .holderName("Andrei Gheorghe")
-                .expiryDate("12/28")
-                .status(CardStatus.ACTIVE)
-                .balanceInCents(0L)           // zero balance — 51 Insufficient Funds
-                .dailyLimitInCents(1000000L)
-                .dailySpentInCents(0L)
-                .lastSpentDate(null)
-                .build(),
-
-            CardAccount.builder()
-                .pan("5500000000000004")
-                .holderName("Elena Constantin")
-                .expiryDate("12/28")
-                .status(CardStatus.ACTIVE)
-                .balanceInCents(500000L)      // 5000.00 RON
-                .dailyLimitInCents(1000000L)
-                .dailySpentInCents(0L)
-                .lastSpentDate(null)
-                .build()
-        );
-
-        cardRepository.saveAll(testCards);
-        log.info("Loaded {} test card accounts.", testCards.size());
+        log.info("Test card accounts reset/seeded: {} cards.", upserted);
     }
 }

@@ -49,7 +49,6 @@ rocksdb-data/
 
 # OS
 Thumbs.db
-frontend/
 
 # Claude Code
 .claude/

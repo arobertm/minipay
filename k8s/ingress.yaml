@@ -111,6 +111,13 @@ spec:
                 name: grafana
                 port:
                   number: 3000
+          - path: /issuer/admin
+            pathType: Prefix
+            backend:
+              service:
+                name: issuer-svc
+                port:
+                  number: 8087
 
 ---
 # CORS middleware

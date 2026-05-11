@@ -36,18 +36,26 @@ spec:
               value: http://network-svc:8086
             - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
               value: kafka:9092
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx384m -XX:MaxMetaspaceSize=128m"
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            failureThreshold: 24
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8084
-            initialDelaySeconds: 30
             periodSeconds: 10
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8084
-            initialDelaySeconds: 60
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               memory: 256Mi

@@ -36,25 +36,35 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: password
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx384m -XX:MaxMetaspaceSize=128m"
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8087
+            failureThreshold: 24
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8087
-            initialDelaySeconds: 30
+            initialDelaySeconds: 0
             periodSeconds: 10
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8087
-            initialDelaySeconds: 60
+            initialDelaySeconds: 0
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
-              memory: 192Mi
-              cpu: 100m
+              memory: 320Mi
+              cpu: 150m
             limits:
-              memory: 384Mi
-              cpu: 400m
+              memory: 512Mi
+              cpu: 500m
 
 ---
 apiVersion: v1

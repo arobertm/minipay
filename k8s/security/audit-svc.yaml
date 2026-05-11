@@ -38,18 +38,26 @@ spec:
                   key: password
             - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
               value: kafka:9092
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m"
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8091
+            failureThreshold: 24
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8091
-            initialDelaySeconds: 30
             periodSeconds: 10
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8091
-            initialDelaySeconds: 60
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               memory: 192Mi

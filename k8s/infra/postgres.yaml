@@ -72,10 +72,10 @@ spec:
             periodSeconds: 5
           resources:
             requests:
-              memory: 256Mi
+              memory: 192Mi
               cpu: 100m
             limits:
-              memory: 768Mi
+              memory: 512Mi
               cpu: 500m
       volumes:
         - name: init-script

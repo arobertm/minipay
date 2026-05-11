@@ -48,6 +48,8 @@ spec:
               value: "true"
             - name: CLUSTER_ID
               value: MkU3OEVBNTcwNTJENDM2Qg
+            - name: KAFKA_HEAP_OPTS
+              value: "-Xms64m -Xmx256m"
           readinessProbe:
             tcpSocket:
               port: 9092
@@ -59,11 +61,11 @@ spec:
               mountPath: /var/lib/kafka/data
           resources:
             requests:
-              memory: 256Mi
-              cpu: 200m
+              memory: 192Mi
+              cpu: 150m
             limits:
-              memory: 768Mi
-              cpu: 1000m
+              memory: 512Mi
+              cpu: 800m
   volumeClaimTemplates:
     - metadata:
         name: data

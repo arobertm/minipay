@@ -30,25 +30,33 @@ spec:
               value: "9081"
             - name: MINIDS_ADDRESS
               value: minids-api:8301
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms32m -Xmx160m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            failureThreshold: 24
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8081
-            initialDelaySeconds: 30
             periodSeconds: 10
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8081
-            initialDelaySeconds: 60
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
-              memory: 256Mi
-              cpu: 150m
+              memory: 96Mi
+              cpu: 100m
             limits:
-              memory: 512Mi
-              cpu: 500m
+              memory: 256Mi
+              cpu: 400m
 
 ---
 apiVersion: v1

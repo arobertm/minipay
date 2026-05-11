@@ -34,25 +34,33 @@ spec:
               value: http://auth-svc:8081/oauth2/jwks-rs256
             - name: AUTH_ISSUER_URI
               value: http://auth-svc:8081
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms32m -Xmx160m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8082
+            failureThreshold: 24
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8082
-            initialDelaySeconds: 30
             periodSeconds: 10
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8082
-            initialDelaySeconds: 60
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
-              memory: 256Mi
+              memory: 96Mi
               cpu: 100m
             limits:
-              memory: 512Mi
-              cpu: 500m
+              memory: 256Mi
+              cpu: 400m
 
 ---
 apiVersion: v1

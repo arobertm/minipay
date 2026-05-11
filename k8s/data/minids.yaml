@@ -82,7 +82,7 @@ spec:
             - name: RAFT_RESOLVE_LOCALHOST
               value: "false"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=64m -XX:+UseSerialGC"
+              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=64m"
           startupProbe:
             httpGet:
               path: /minids/v1/health

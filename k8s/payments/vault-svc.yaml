@@ -31,7 +31,7 @@ spec:
             - name: AUTH_ISSUER_URI
               value: http://auth-svc:8081
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m"
           startupProbe:
             httpGet:
               path: /actuator/health

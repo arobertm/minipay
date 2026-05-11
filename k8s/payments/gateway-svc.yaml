@@ -37,7 +37,7 @@ spec:
             - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
               value: kafka:9092
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms32m -Xmx256m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+              value: "-Xms32m -Xmx256m -XX:MaxMetaspaceSize=96m"
           startupProbe:
             httpGet:
               path: /actuator/health

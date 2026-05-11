@@ -111,13 +111,6 @@ spec:
                 name: grafana
                 port:
                   number: 3000
-          - path: /prometheus
-            pathType: Prefix
-            backend:
-              service:
-                name: prometheus
-                port:
-                  number: 9090
           - path: /issuer/admin
             pathType: Prefix
             backend:

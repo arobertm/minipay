@@ -56,26 +56,6 @@ data:
           - targets: ['audit-svc:8091']
         metrics_path: '/actuator/prometheus'
 
-      - job_name: 'notif-svc'
-        static_configs:
-          - targets: ['notif-svc:8093']
-        metrics_path: '/actuator/prometheus'
-
-      - job_name: 'settlement-svc'
-        static_configs:
-          - targets: ['settlement-svc:8094']
-        metrics_path: '/actuator/prometheus'
-
-      - job_name: 'psd2-svc'
-        static_configs:
-          - targets: ['psd2-svc:8095']
-        metrics_path: '/actuator/prometheus'
-
-      - job_name: 'tds-svc'
-        static_configs:
-          - targets: ['tds-svc:8096']
-        metrics_path: '/actuator/prometheus'
-
       - job_name: 'minids'
         static_configs:
           - targets: ['minids-0.minids:8301', 'minids-1.minids:8301', 'minids-2.minids:8301']

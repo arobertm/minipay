@@ -24,8 +24,10 @@ spec:
           env:
             - name: SERVER_PORT
               value: "8095"
+            - name: SPRING_MAIN_LAZY_INITIALIZATION
+              value: "true"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m"
+              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=24m -XX:TieredStopAtLevel=1"
           startupProbe:
             httpGet:
               path: /actuator/health

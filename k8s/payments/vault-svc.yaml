@@ -24,6 +24,8 @@ spec:
           env:
             - name: SERVER_PORT
               value: "8085"
+            - name: SPRING_MAIN_LAZY_INITIALIZATION
+              value: "true"
             - name: MINIDS_ADDRESS
               value: http://minids-api:8301
             - name: AUTH_JWK_URI
@@ -31,7 +33,7 @@ spec:
             - name: AUTH_ISSUER_URI
               value: http://auth-svc:8081
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m"
+              value: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=24m -XX:TieredStopAtLevel=1"
           startupProbe:
             httpGet:
               path: /actuator/health

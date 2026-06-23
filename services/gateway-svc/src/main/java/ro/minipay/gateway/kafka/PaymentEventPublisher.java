@@ -23,11 +23,20 @@ public class PaymentEventPublisher {
 
     public void publish(PaymentAuditEvent event) {
         try {
-            kafkaTemplate.send(TOPIC, event.txnId(), event);
-            log.info("Published payment event: txnId={} status={}", event.txnId(), event.status());
+            kafkaTemplate.send(TOPIC, event.txnId(), event)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("KAFKA SEND FAILED (async) txnId={} status={}: {}",
+                            event.txnId(), event.status(), ex.getMessage());
+                    } else {
+                        log.info("Published payment event: txnId={} status={} offset={}",
+                            event.txnId(), event.status(),
+                            result.getRecordMetadata().offset());
+                    }
+                });
         } catch (Exception e) {
-            // Non-critical — audit must not block payments
-            log.warn("Failed to publish audit event for txnId={}: {}", event.txnId(), e.getMessage());
+            log.error("KAFKA SEND FAILED (sync) txnId={} status={}: {}",
+                event.txnId(), event.status(), e.getMessage());
         }
     }
 }

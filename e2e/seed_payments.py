@@ -80,9 +80,21 @@ def get_token() -> str:
     return resp.json()["access_token"]
 
 
+# IPs externe folosite pentru scenarii de fraudă (ip_external=1 → scor ridicat)
+FRAUD_IPS = [
+    "91.108.4.100", "185.220.101.5", "194.165.16.78",
+    "45.142.212.100", "77.83.198.50", "5.188.206.14",
+]
+
+
 def make_payment(headers: dict, pan: str, expiry: str, cvv: str,
-                 amount: int, currency: str, merchant: str, order: str) -> dict | None:
+                 amount: int, currency: str, merchant: str, order: str,
+                 spoof_ip: str | None = None) -> dict | None:
     try:
+        req_headers = dict(headers)
+        if spoof_ip:
+            req_headers["X-Forwarded-For"] = spoof_ip
+
         resp = requests.post(
             f"{BASE_URL}/api/v1/payments/authorize",
             json={
@@ -94,7 +106,7 @@ def make_payment(headers: dict, pan: str, expiry: str, cvv: str,
                 "merchantId": merchant,
                 "orderId":    order,
             },
-            headers=headers,
+            headers=req_headers,
             timeout=15,
         )
         return resp.json() if resp.status_code in (200, 201) else None
@@ -172,6 +184,7 @@ def main():
                 scenario["pan"], scenario["expiry"], scenario["cvv"],
                 scenario["amount"], scenario["currency"],
                 merchant, order,
+                spoof_ip=random.choice(FRAUD_IPS),
             )
             if result:
                 txn_id = result.get("txnId", "?")

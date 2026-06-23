@@ -21,10 +21,10 @@ export default function LoginPage() {
     try {
       const token = await getClientToken();
       setToken(token);
-      toast.success("Authenticated successfully");
+      toast.success("Autentificare reușită");
       router.push("/dashboard");
     } catch {
-      toast.error("Authentication failed — check backend connectivity");
+      toast.error("Autentificare eșuată — verifică conectivitatea cu serverul");
     } finally {
       setLoading(false);
     }
@@ -46,14 +46,14 @@ export default function LoginPage() {
             <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">Mini</span>
             <span className="text-foreground">Pay</span>
           </h1>
-          <p className="text-foreground/60 text-base font-medium">Enterprise Payment Platform</p>
+          <p className="text-foreground/60 text-base font-medium">Platformă de Plăți Enterprise</p>
         </div>
 
         {/* Login Card */}
         <div className="card-premium glass backdrop-blur-xl border-foreground/20 fadeIn" style={{ animationDelay: "0.1s" }}>
           <div className="mb-8">
-            <h2 className="text-2xl font-display font-bold text-foreground">Welcome Back</h2>
-            <p className="text-foreground/50 text-sm mt-2">Sign in to your dashboard</p>
+            <h2 className="text-2xl font-display font-bold text-foreground">Bun venit</h2>
+            <p className="text-foreground/50 text-sm mt-2">Autentifică-te în panoul de control</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -94,10 +94,10 @@ export default function LoginPage() {
               {loading ? (
                 <>
                   <Loader2 size={18} className="animate-spin mr-2" />
-                  <span>Authenticating...</span>
+                  <span>Se autentifică...</span>
                 </>
               ) : (
-                <span>Sign In</span>
+                <span>Intră în cont</span>
               )}
             </Button>
           </form>
@@ -107,7 +107,7 @@ export default function LoginPage() {
 
         {/* Bottom info */}
         <div className="mt-8 text-center text-xs text-foreground/40 fadeIn" style={{ animationDelay: "0.2s" }}>
-          <p>Enterprise-grade security with post-quantum crypto ready</p>
+          <p>Securitate enterprise cu criptografie post-cuantică</p>
         </div>
       </div>
     </div>

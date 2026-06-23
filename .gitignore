@@ -51,4 +51,5 @@ rocksdb-data/
 Thumbs.db
 
 # Claude Code
-.claude/
+.claude
+.bruno

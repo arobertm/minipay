@@ -5,13 +5,12 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { gateway, toCents } from "@/lib/api/gateway";
-import { api } from "@/lib/api/axios";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Lock, ShieldCheck, ArrowLeft, CreditCard, RotateCcw } from "lucide-react";
+import { Loader2, Lock, ShieldCheck, ArrowLeft, CreditCard } from "lucide-react";
 import Link from "next/link";
 
 interface CartItem { id: string; name: string; price: number; currency: string; qty: number }
@@ -21,10 +20,10 @@ export default function CheckoutPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
 
   const [cardForm, setCardForm] = useState({
-    pan: "4111111111111111",
-    expiry: "12/28",
-    cvv: "123",
-    name: "Ion Popescu",
+    pan: "",
+    expiry: "",
+    cvv: "",
+    name: "",
   });
 
   useEffect(() => {
@@ -33,12 +32,6 @@ export default function CheckoutPage() {
   }, []);
 
   const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
-
-  const resetMut = useMutation({
-    mutationFn: () => api.post("/issuer/admin/reset-cards").then((r) => r.data),
-    onSuccess: () => toast.success("Test card balances reset to 5000 RON"),
-    onError: () => toast.error("Reset failed — check backend logs"),
-  });
 
   const checkoutMut = useMutation({
     mutationFn: () =>
@@ -162,24 +155,9 @@ export default function CheckoutPage() {
           </Button>
 
           <div className="flex items-center justify-center gap-3 mt-5">
-            {["VISA", "MC", "AMEX"].map((b) => (
+            {["VISA", "MC"].map((b) => (
               <Badge key={b} className="bg-gray-100 text-gray-400 border-gray-200 text-xs font-semibold">{b}</Badge>
             ))}
-          </div>
-
-          <div className="mt-6 pt-5 border-t border-dashed border-gray-200">
-            <p className="text-[10px] text-gray-400 font-mono mb-2 uppercase tracking-wider">Dev Tools</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full text-xs text-gray-400 border-gray-200 hover:border-amber-300 hover:text-amber-600 gap-2"
-              onClick={() => resetMut.mutate()}
-              disabled={resetMut.isPending}
-            >
-              {resetMut.isPending
-                ? <><Loader2 size={12} className="animate-spin" />Se resetează…</>
-                : <><RotateCcw size={12} />Reset solduri carduri test (→ 5000 RON)</>}
-            </Button>
           </div>
         </div>
       </div>

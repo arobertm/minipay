@@ -10,12 +10,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ComposedChart, Area,
 } from "recharts";
 import {
   CreditCard, ShieldAlert, Landmark, Bell, TrendingUp,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 
 /* ---------- custom tooltip ---------- */
 const ChartTooltip = ({ active, payload, label, unit = "" }: any) => {
@@ -53,18 +52,17 @@ export default function DashboardPage() {
 
   /* --- chart data --- */
 
-  // Area chart: amount + txn count per day
-  const txnByDay = Object.entries(
-    entries.reduce<Record<string, { amount: number; count: number }>>((acc, e) => {
-      const day = e.eventTimestamp ? format(new Date(e.eventTimestamp), "dd MMM") : "?";
-      if (!acc[day]) acc[day] = { amount: 0, count: 0 };
-      acc[day].amount += (e.amount ?? 0) / 100;
-      acc[day].count  += 1;
-      return acc;
-    }, {})
-  )
-    .map(([day, v]) => ({ day, amount: parseFloat(v.amount.toFixed(0)), count: v.count }))
-    .slice(-14);
+  // Line chart: transaction count per day, padded to last 14 days ending today
+  const today = new Date();
+  const last14Keys = Array.from({ length: 14 }, (_, i) =>
+    format(subDays(today, 13 - i), "dd MMM")
+  );
+  const entryCountByDay = entries.reduce<Record<string, number>>((acc, e) => {
+    const day = e.eventTimestamp ? format(new Date(e.eventTimestamp), "dd MMM") : null;
+    if (day) acc[day] = (acc[day] ?? 0) + 1;
+    return acc;
+  }, {});
+  const txnByDay = last14Keys.map((day) => ({ day, count: entryCountByDay[day] ?? 0 }));
 
   // Donut: fraud distribution
   const low    = entries.filter((e) => e.fraudScore < 0.3).length;
@@ -122,8 +120,8 @@ export default function DashboardPage() {
         {[
           { title: "Evenimente Audit",   value: auditQ.isLoading ? "—" : totalTxns,      icon: CreditCard,  color: "emerald" as const,     sub: "activitate totală sistem" },
           { title: "Risc Ridicat",       value: auditQ.isLoading ? "—" : high,           icon: ShieldAlert, color: "destructive" as const, sub: "detectate de fraud-svc" },
-          { title: "Batches Pendiente",  value: batchQ.isLoading ? "—" : pendingBatches, icon: Landmark,    color: "amber" as const,       sub: "în așteptare reconciliere" },
-          { title: "Notificări Trimise", value: notifQ.isLoading ? "—" : totalNotifs,    icon: Bell,        color: "cyan" as const,        sub: "SMS · Email · Push" },
+          { title: "Loturi Pendinte",    value: batchQ.isLoading ? "—" : pendingBatches,                              icon: Landmark, color: "amber" as const, sub: "în așteptare reconciliere" },
+          { title: "Notificări Livrate", value: notifQ.isLoading ? "—" : notifQ.isError ? "—" : totalNotifs, icon: Bell,     color: "cyan" as const,  sub: "SMS · Email · Push" },
         ].map((s, i) => (
           <div key={s.title} className={`fadeIn stagger-${i + 1}`}>
             <StatCard {...s} />
@@ -135,33 +133,22 @@ export default function DashboardPage() {
       <div className="card-premium fadeIn stagger-1">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-base font-display font-semibold text-foreground">Volum tranzacții</h2>
-            <p className="text-xs text-foreground/40 mt-0.5">Ultimele 14 zile · sumă procesată</p>
+            <h2 className="text-base font-display font-semibold text-foreground">Tranzacții</h2>
+            <p className="text-xs text-foreground/40 mt-0.5">Ultimele 14 zile · număr tranzacții procesate</p>
           </div>
           <div className="flex items-center gap-4 text-xs text-foreground/50">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 rounded-full inline-block" style={{ background: C.green }} />Sumă (lei)</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 rounded-full inline-block" style={{ background: C.cyan }} />Tranzacții</span>
           </div>
         </div>
-        {auditQ.isLoading ? <Skeleton className="h-64 bg-foreground/5 rounded-lg" /> : txnByDay.length === 0 ? (
-          <div className="h-64 flex items-center justify-center text-foreground/30 text-sm">Nicio tranzacție înregistrată</div>
-        ) : (
+        {auditQ.isLoading ? <Skeleton className="h-64 bg-foreground/5 rounded-lg" /> : (
           <ResponsiveContainer width="100%" height={260}>
-            <ComposedChart data={txnByDay} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gAmount" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor={C.green} stopOpacity={0.3} />
-                  <stop offset="100%" stopColor={C.green} stopOpacity={0} />
-                </linearGradient>
-              </defs>
+            <LineChart data={txnByDay} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
               <XAxis dataKey="day" tick={{ fill: "#4b5563", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left"  tick={{ fill: "#4b5563", fontSize: 11 }} axisLine={false} tickLine={false} width={58} tickFormatter={(v) => `${v} lei`} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fill: "#4b5563", fontSize: 11 }} axisLine={false} tickLine={false} width={30} />
+              <YAxis tick={{ fill: "#4b5563", fontSize: 11 }} axisLine={false} tickLine={false} width={38} allowDecimals={false} />
               <Tooltip content={<ChartTooltip />} />
-              <Area yAxisId="left"  type="monotone" dataKey="amount" name="Sumă" stroke={C.green} strokeWidth={2.5} fill="url(#gAmount)" dot={false} activeDot={{ r: 5, fill: C.green, strokeWidth: 0 }} />
-              <Line yAxisId="right" type="monotone" dataKey="count"  name="Tranzacții" stroke={C.cyan} strokeWidth={2} dot={false} strokeDasharray="4 3" activeDot={{ r: 4, fill: C.cyan, strokeWidth: 0 }} />
-            </ComposedChart>
+              <Line type="monotone" dataKey="count" name="Tranzacții" stroke={C.cyan} strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: C.cyan, strokeWidth: 0 }} />
+            </LineChart>
           </ResponsiveContainer>
         )}
       </div>
@@ -214,8 +201,8 @@ export default function DashboardPage() {
 
         {/* Status pie */}
         <div className="card-premium fadeIn stagger-2">
-          <h2 className="text-base font-display font-semibold text-foreground mb-1">Status tranzacții</h2>
-          <p className="text-xs text-foreground/40 mb-5">Breakdown pe tip de rezultat</p>
+          <h2 className="text-base font-display font-semibold text-foreground mb-1">Status Plăți</h2>
+          <p className="text-xs text-foreground/40 mb-5">Distribuție pe tip de rezultat</p>
           {auditQ.isLoading ? <Skeleton className="h-48 bg-foreground/5 rounded-lg" /> : statusData.length === 0 ? (
             <div className="h-48 flex items-center justify-center text-foreground/30 text-sm">Nicio tranzacție</div>
           ) : (
@@ -246,9 +233,11 @@ export default function DashboardPage() {
 
         {/* Notifications bar */}
         <div className="card-premium fadeIn stagger-3">
-          <h2 className="text-base font-display font-semibold text-foreground mb-1">Notificări</h2>
+          <h2 className="text-base font-display font-semibold text-foreground mb-1">Canal Notificări</h2>
           <p className="text-xs text-foreground/40 mb-5">Distribuite pe canal de livrare</p>
-          {notifQ.isLoading ? <Skeleton className="h-48 bg-foreground/5 rounded-lg" /> : notifData.length === 0 ? (
+          {notifQ.isLoading ? <Skeleton className="h-48 bg-foreground/5 rounded-lg" /> : notifQ.isError ? (
+            <div className="h-48 flex items-center justify-center text-foreground/30 text-sm">Serviciu indisponibil</div>
+          ) : notifData.length === 0 ? (
             <div className="h-48 flex items-center justify-center text-foreground/30 text-sm">Nicio notificare</div>
           ) : (
             <div className="flex flex-col gap-4 mt-2">

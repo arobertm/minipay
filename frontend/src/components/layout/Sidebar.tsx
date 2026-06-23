@@ -17,7 +17,6 @@ import {
   Users,
   ShoppingCart,
   LogOut,
-  Atom,
   ChevronRight,
 } from "lucide-react";
 
@@ -33,7 +32,6 @@ const NAV = [
   { type: "divider" as const, label: "Securitate & Integrare" },
   { label: "Token Vault", href: "/vault", icon: KeyRound },
   { label: "PSD2 Open Banking", href: "/psd2", icon: Globe },
-  { label: "Post-Quantum Crypto", href: "/pqc", icon: Atom },
   { label: "Utilizatori", href: "/users", icon: Users },
   { type: "divider" as const, label: "Demo" },
   { label: "Demo Shop", href: "/shop", icon: ShoppingCart },

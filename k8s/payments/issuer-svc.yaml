@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: issuer-svc
-          image: ghcr.io/arobertm/minipay/issuer-svc:6b14e74453820fb24a023db66b71a8da3b4d1b6f
+          image: ghcr.io/arobertm/minipay/issuer-svc:38c77803cac4876146729ed9e45fff297cdc290e
           imagePullPolicy: Always
           ports:
             - name: http

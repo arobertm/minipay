@@ -1,8 +1,6 @@
 import axios from "axios";
 
-// All requests go through the Next.js proxy to avoid CORS.
-// /api/proxy/<path> → server-side → api-minipay.online/<path>
-const BASE = "/api/proxy";
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://api-minipay.online";
 
 export const api = axios.create({ baseURL: BASE });
 

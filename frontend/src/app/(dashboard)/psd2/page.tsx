@@ -29,8 +29,8 @@ export default function Psd2Page() {
 
   const consentMut = useMutation({
     mutationFn: () => psd2.createConsent(userId, [iban], ["ReadAccountList", "ReadBalances", "ReadTransactions"], new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]),
-    onSuccess: (d) => { setCreatedConsent(d.consentId); setConsentId(d.consentId); toast.success("Consent created"); },
-    onError: () => toast.error("Consent creation failed"),
+    onSuccess: (d) => { setCreatedConsent(d.consentId); setConsentId(d.consentId); toast.success("Consimțământ creat"); },
+    onError: () => toast.error("Creare consimțământ eșuată"),
   });
 
   const accountsQ = useQuery({
@@ -41,8 +41,8 @@ export default function Psd2Page() {
 
   const sepaMut = useMutation({
     mutationFn: () => psd2.initiateSepa(sepaForm),
-    onSuccess: (d) => { setPaymentResult(d); toast.success(`SEPA initiated: ${d.paymentId.slice(0, 8)}…`); },
-    onError: () => toast.error("SEPA initiation failed"),
+    onSuccess: (d) => { setPaymentResult(d); toast.success(`Plată SEPA inițiată: ${d.paymentId.slice(0, 8)}…`); },
+    onError: () => toast.error("Inițiere SEPA eșuată"),
   });
 
   const sf = (k: keyof typeof sepaForm, v: string | number) => setSepaForm((p) => ({ ...p, [k]: v }));

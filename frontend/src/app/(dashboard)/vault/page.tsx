@@ -17,19 +17,19 @@ export default function VaultPage() {
 
   const tokenizeMut = useMutation({
     mutationFn: () => vault.tokenize(panForm),
-    onSuccess: (d) => { setDpanResult(d.dpan); toast.success("Tokenized successfully"); },
-    onError: () => toast.error("Tokenization failed"),
+    onSuccess: (d) => { setDpanResult(d.dpan); toast.success("Tokenizare reușită"); },
+    onError: () => toast.error("Tokenizare eșuată"),
   });
 
   const detokenizeMut = useMutation({
     mutationFn: () => vault.detokenize(dpanInput),
-    onSuccess: (d) => { setDeTokenResult(d.maskedPan); toast.success("Detokenized"); },
-    onError: () => toast.error("Detokenize failed"),
+    onSuccess: (d) => { setDeTokenResult(d.maskedPan); toast.success("Detokenizare reușită"); },
+    onError: () => toast.error("Detokenizare eșuată"),
   });
 
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text);
-    toast.info("Copied to clipboard");
+    toast.info("Copiat în clipboard");
   }
 
   return (

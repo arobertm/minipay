@@ -84,14 +84,14 @@ export default function TdsPage() {
         api.get<ChallengeSession>(`/tds/challenge/${data.acsTransID}`)
           .then((r) => { setChallengeSession(r.data); setOtpOpen(true); })
           .catch(() => setOtpOpen(true));
-        toast.info("Challenge required — enter OTP");
+        toast.info("Autentificare suplimentară necesară — introduceți OTP");
       } else if (data.transStatus === "Y") {
-        toast.success("Frictionless authentication approved");
+        toast.success("Autentificare aprobată");
       } else {
-        toast.error(`Authentication result: ${data.transStatus}`);
+        toast.error(`Rezultat autentificare: ${data.transStatus}`);
       }
     },
-    onError: () => toast.error("3DS authentication failed"),
+    onError: () => toast.error("Autentificare 3DS eșuată"),
   });
 
   const challengeMut = useMutation({
@@ -100,10 +100,10 @@ export default function TdsPage() {
     onSuccess: (data) => {
       setFinalResult(data);
       setOtpOpen(false);
-      if (data.transStatus === "Y") toast.success("Challenge passed ✅");
-      else toast.error("OTP incorrect ❌");
+      if (data.transStatus === "Y") toast.success("Verificare reușită");
+      else toast.error("OTP incorect");
     },
-    onError: () => toast.error("Challenge verification failed"),
+    onError: () => toast.error("Verificare challenge eșuată"),
   });
 
   const f = (k: keyof typeof form, v: string | number) => setForm((p) => ({ ...p, [k]: v }));

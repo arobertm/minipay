@@ -30,10 +30,10 @@ export default function SettlementsPage() {
   const reconcileMut = useMutation({
     mutationFn: settlements.reconcile,
     onSuccess: (data) => {
-      toast.success(`Reconciliation complete — ${data.batchesCreated} batch(es) for ${data.date}`);
+      toast.success(`Reconciliere completă — ${data.batchesCreated} lot(uri) pentru ${data.date}`);
       qc.invalidateQueries({ queryKey: ["batches"] });
     },
-    onError: () => toast.error("Reconciliation failed"),
+    onError: () => toast.error("Reconciliere eșuată"),
   });
 
   return (

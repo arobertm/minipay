@@ -49,7 +49,7 @@ export default function CheckoutPage() {
       localStorage.removeItem("mp_cart");
       router.push(`/shop/receipt?txnId=${data.txnId}&status=${data.status}&amount=${data.amount}&currency=${data.currency}&fraud=${data.fraudScore ?? 0}`);
     },
-    onError: () => toast.error("Payment failed — please try again"),
+    onError: () => toast.error("Plată eșuată — reîncearcă"),
   });
 
   const cf = (k: keyof typeof cardForm, v: string) => setCardForm((p) => ({ ...p, [k]: v }));

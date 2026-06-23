@@ -24,10 +24,10 @@ export default function AuditPage() {
   const verifyMut = useMutation({
     mutationFn: audit.verify,
     onSuccess: (data) => {
-      if (data.isValid) toast.success("Merkle integrity verified ✅");
-      else toast.error("Merkle integrity FAILED ❌");
+      if (data.isValid) toast.success("Integritate Merkle verificată");
+      else toast.error("Verificare Merkle eșuată");
     },
-    onError: () => toast.error("Verify request failed"),
+    onError: () => toast.error("Cerere de verificare eșuată"),
   });
 
   return (
@@ -35,7 +35,7 @@ export default function AuditPage() {
       <div className="flex items-start justify-between fadeIn">
         <div>
           <h1 className="text-4xl font-display font-bold text-foreground">Jurnal Audit</h1>
-          <p className="text-foreground/60 text-base mt-2 font-medium">Lanț hash imutabil · PCI DSS Cerința 10</p>
+          <p className="text-foreground/60 text-base mt-2 font-medium">Lanț hash imutabil</p>
         </div>
         <Button onClick={() => verifyMut.mutate()} disabled={verifyMut.isPending} variant="outline"
           className="border-primary/40 text-primary hover:bg-primary/10">

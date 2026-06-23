@@ -89,9 +89,9 @@ export default function FraudPage() {
     mutationFn: () => fraud.score(form),
     onSuccess: (data) => {
       setResult(data);
-      toast.success(`Fraud scored: ${(data.score * 100).toFixed(1)}% — ${data.decision}`);
+      toast.success(`Scor fraudă: ${(data.score * 100).toFixed(1)}% — ${data.decision}`);
     },
-    onError: () => toast.error("Fraud scoring failed"),
+    onError: () => toast.error("Evaluare fraudă eșuată"),
   });
 
   const f = (key: keyof FraudRequest, value: unknown) =>

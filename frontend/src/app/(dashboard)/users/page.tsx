@@ -18,9 +18,9 @@ export default function UsersPage() {
 
   const createMut = useMutation({
     mutationFn: () => users.create(createForm),
-    onSuccess: (u) => { setCreatedUser(u); toast.success(`User created: ${u.userId.slice(0, 8)}…`); },
+    onSuccess: (u) => { setCreatedUser(u); toast.success(`Utilizator creat: ${u.userId.slice(0, 8)}…`); },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Create failed";
+      const msg = (e as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Creare eșuată";
       toast.error(msg);
     },
   });

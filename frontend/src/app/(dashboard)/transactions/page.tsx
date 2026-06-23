@@ -48,10 +48,10 @@ export default function TransactionsPage() {
     onSuccess: (data) => {
       setTxns((prev) => [data, ...prev]);
       setForm((f) => ({ ...f, orderId: `ORD-${Date.now()}` }));
-      toast.success(`Payment ${data.status} — ${data.txnId?.slice(0, 8)}…`);
+      toast.success(`Plată ${data.status} — ${data.txnId?.slice(0, 8)}…`);
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Authorization failed";
+      const msg = (e as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Autorizare eșuată";
       toast.error(msg);
     },
   });
@@ -60,18 +60,18 @@ export default function TransactionsPage() {
     mutationFn: (t: PaymentResponse) => gateway.capture(t.txnId, t.amount, t.currency),
     onSuccess: (data) => {
       setTxns((prev) => prev.map((t) => (t.txnId === data.txnId ? data : t)));
-      toast.success("Payment captured");
+      toast.success("Plată capturată");
     },
-    onError: () => toast.error("Capture failed"),
+    onError: () => toast.error("Capturare eșuată"),
   });
 
   const refundMut = useMutation({
     mutationFn: (t: PaymentResponse) => gateway.refund(t.txnId, t.amount),
     onSuccess: (data) => {
       setTxns((prev) => prev.map((t) => (t.txnId === data.txnId ? data : t)));
-      toast.success("Payment refunded");
+      toast.success("Plată rambursată");
     },
-    onError: () => toast.error("Refund failed"),
+    onError: () => toast.error("Rambursare eșuată"),
   });
 
   return (

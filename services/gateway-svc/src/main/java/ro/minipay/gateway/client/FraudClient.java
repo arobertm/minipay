@@ -7,6 +7,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Collections;
@@ -49,12 +50,17 @@ public class FraudClient {
 
             double score   = ((Number) response.getOrDefault("score", 0.0)).doubleValue();
             List<String> reasons = castToStringList(response.get("reasons"));
-            log.info("Fraud score: {} for DPAN {}****{}", score,
-                dpan.substring(0, 6), dpan.substring(12));
-            return new FraudResult(score, reasons);
+            FraudResult result = new FraudResult(score, reasons);
+            log.info("Fraud score: {} decision={} dpan={}...",
+                String.format("%.4f", score),
+                score >= 0.8 ? "BLOCK" : score >= 0.5 ? "CHALLENGE" : "ALLOW",
+                dpan.length() >= 6 ? dpan.substring(0, 6) : dpan);
+            return result;
 
+        } catch (HttpClientErrorException e) {
+            log.error("fraud-svc validation error {} — body: {}", e.getStatusCode(), e.getResponseBodyAsString());
+            return FraudResult.safe();
         } catch (Exception e) {
-            // Fail-open: if fraud-svc is down, allow transaction but log warning
             log.warn("fraud-svc unavailable, defaulting to score=0.0: {}", e.getMessage());
             return FraudResult.safe();
         }

@@ -24,7 +24,7 @@ public class PaymentEventPublisher {
     public void publish(PaymentAuditEvent event) {
         try {
             kafkaTemplate.send(TOPIC, event.txnId(), event);
-            log.debug("Published payment event: txnId={} status={}", event.txnId(), event.status());
+            log.info("Published payment event: txnId={} status={}", event.txnId(), event.status());
         } catch (Exception e) {
             // Non-critical — audit must not block payments
             log.warn("Failed to publish audit event for txnId={}: {}", event.txnId(), e.getMessage());

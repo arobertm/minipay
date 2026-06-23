@@ -115,16 +115,23 @@ public class PaymentService {
                 "Cannot capture payment in status: " + existing.status());
         }
 
+        String captureTimestamp = Instant.now().toString();
         PaymentResponse captured = new PaymentResponse(
             txnId, existing.dpan(), PaymentStatus.CAPTURED,
             "00", request.amount(),
             request.currency() != null ? request.currency() : existing.currency(),
             existing.merchantId(), existing.orderId(),
             existing.fraudScore(), existing.fraudReasons(),
-            existing.authCode(), null, Instant.now().toString()
+            existing.authCode(), null, captureTimestamp
         );
         store.put(txnId, captured);
         log.info("Payment CAPTURED: txnId={} amount={}", txnId, request.amount());
+
+        eventPublisher.publish(new PaymentAuditEvent(
+            txnId, PaymentStatus.CAPTURED.name(), captured.amount(), captured.currency(),
+            captured.merchantId(), "", captured.fraudScore() != null ? captured.fraudScore() : 0.0,
+            captureTimestamp
+        ));
         return captured;
     }
 
@@ -139,16 +146,23 @@ public class PaymentService {
                 "Cannot refund payment in status: " + existing.status());
         }
 
+        String refundTimestamp = Instant.now().toString();
         PaymentResponse refunded = new PaymentResponse(
             txnId, existing.dpan(), PaymentStatus.REFUNDED,
             "00", request.amount(), existing.currency(),
             existing.merchantId(), existing.orderId(),
             existing.fraudScore(), existing.fraudReasons(),
-            existing.authCode(), null, Instant.now().toString()
+            existing.authCode(), null, refundTimestamp
         );
         store.put(txnId, refunded);
         log.info("Payment REFUNDED: txnId={} amount={} reason={}",
             txnId, request.amount(), request.reason());
+
+        eventPublisher.publish(new PaymentAuditEvent(
+            txnId, PaymentStatus.REFUNDED.name(), refunded.amount(), refunded.currency(),
+            refunded.merchantId(), "", refunded.fraudScore() != null ? refunded.fraudScore() : 0.0,
+            refundTimestamp
+        ));
         return refunded;
     }
 

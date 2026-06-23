@@ -11,7 +11,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  CreditCard, ShieldAlert, Bell, TrendingUp,
+  CreditCard, ShieldAlert, Bell, TrendingUp, CheckCircle,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 
@@ -45,7 +45,11 @@ export default function DashboardPage() {
   const entries     = auditQ.data?.content ?? [];
   const totalTxns   = auditQ.data?.totalElements ?? 0;
   const totalNotifs = notifQ.data?.total ?? 0;
-  const high           = entries.filter((e) => e.fraudScore >= 0.7).length;
+  const high        = entries.filter((e) => e.fraudScore >= 0.7).length;
+
+  const authorized  = entries.filter((e) => e.status === "AUTHORIZED" || e.status === "CAPTURED").length;
+  const decidable   = entries.filter((e) => ["AUTHORIZED", "CAPTURED", "DECLINED"].includes(e.status)).length;
+  const approvalRate = decidable > 0 ? Math.round((authorized / decidable) * 100) : null;
 
   /* --- chart data --- */
 
@@ -115,9 +119,10 @@ export default function DashboardPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {[
-          { title: "Evenimente Audit",   value: auditQ.isLoading ? "—" : totalTxns,      icon: CreditCard,  color: "emerald" as const,     sub: "activitate totală sistem" },
-          { title: "Risc Ridicat",       value: auditQ.isLoading ? "—" : high,           icon: ShieldAlert, color: "destructive" as const, sub: "detectate de fraud-svc" },
-{ title: "Notificări Livrate", value: notifQ.isLoading ? "—" : notifQ.isError ? "—" : totalNotifs, icon: Bell,     color: "cyan" as const,  sub: "SMS · Email · Push" },
+          { title: "Evenimente Audit",   value: auditQ.isLoading ? "—" : totalTxns,                                                    icon: CreditCard,   color: "emerald" as const,     sub: "activitate totală sistem" },
+          { title: "Risc Ridicat",       value: auditQ.isLoading ? "—" : high,                                                          icon: ShieldAlert,  color: "destructive" as const, sub: "detectate de fraud-svc" },
+          { title: "Rată de Aprobare",   value: auditQ.isLoading ? "—" : approvalRate === null ? "N/A" : `${approvalRate}%`,            icon: CheckCircle,  color: "amber" as const,       sub: "autorizate din total" },
+          { title: "Notificări Livrate", value: notifQ.isLoading ? "—" : notifQ.isError ? "—" : totalNotifs,                           icon: Bell,         color: "cyan" as const,        sub: "SMS · Email · Push" },
         ].map((s, i) => (
           <div key={s.title} className={`fadeIn stagger-${i + 1}`}>
             <StatCard {...s} />

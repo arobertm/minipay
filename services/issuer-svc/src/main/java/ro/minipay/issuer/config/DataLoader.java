@@ -30,10 +30,10 @@ public class DataLoader implements ApplicationRunner {
     record Seed(String pan, String holderName, CardStatus status, long balanceInCents) {}
 
     private static final List<Seed> SEEDS = List.of(
-        new Seed("4111111111111111", "Ion Popescu",      CardStatus.ACTIVE,   500000L),
-        new Seed("4000000000000002", "Maria Ionescu",    CardStatus.BLOCKED,  500000L),
-        new Seed("4000000000009995", "Andrei Gheorghe",  CardStatus.ACTIVE,        0L),
-        new Seed("5500000000000004", "Elena Constantin", CardStatus.ACTIVE,   500000L)
+        new Seed("4111111111111111", "Ion Popescu",      CardStatus.ACTIVE,  10_000_000L),
+        new Seed("4000000000000002", "Maria Ionescu",    CardStatus.BLOCKED,  10_000_000L),
+        new Seed("4000000000009995", "Andrei Gheorghe",  CardStatus.ACTIVE,           0L),
+        new Seed("5500000000000004", "Elena Constantin", CardStatus.ACTIVE,  10_000_000L)
     );
 
     @Override

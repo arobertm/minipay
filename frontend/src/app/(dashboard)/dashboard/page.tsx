@@ -3,7 +3,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { audit } from "@/lib/api/audit";
 import { notifications } from "@/lib/api/notifications";
-import { settlements } from "@/lib/api/settlements";
 import { StatCard } from "@/components/layout/StatCard";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,7 +11,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  CreditCard, ShieldAlert, Landmark, Bell, TrendingUp,
+  CreditCard, ShieldAlert, Bell, TrendingUp,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 
@@ -42,12 +41,10 @@ const statusColor: Record<string, string> = {
 export default function DashboardPage() {
   const auditQ = useQuery({ queryKey: ["audit-entries"], queryFn: () => audit.list(0, 100) });
   const notifQ = useQuery({ queryKey: ["notif-stats"],   queryFn: notifications.stats });
-  const batchQ = useQuery({ queryKey: ["settle-batches"], queryFn: settlements.batches });
 
-  const entries        = auditQ.data?.content ?? [];
-  const totalTxns      = auditQ.data?.totalElements ?? 0;
-  const pendingBatches = batchQ.data?.filter((b) => b.status === "PENDING").length ?? 0;
-  const totalNotifs    = notifQ.data?.total ?? 0;
+  const entries     = auditQ.data?.content ?? [];
+  const totalTxns   = auditQ.data?.totalElements ?? 0;
+  const totalNotifs = notifQ.data?.total ?? 0;
   const high           = entries.filter((e) => e.fraudScore >= 0.7).length;
 
   /* --- chart data --- */
@@ -120,8 +117,7 @@ export default function DashboardPage() {
         {[
           { title: "Evenimente Audit",   value: auditQ.isLoading ? "—" : totalTxns,      icon: CreditCard,  color: "emerald" as const,     sub: "activitate totală sistem" },
           { title: "Risc Ridicat",       value: auditQ.isLoading ? "—" : high,           icon: ShieldAlert, color: "destructive" as const, sub: "detectate de fraud-svc" },
-          { title: "Loturi Pendinte",    value: batchQ.isLoading ? "—" : pendingBatches,                              icon: Landmark, color: "amber" as const, sub: "în așteptare reconciliere" },
-          { title: "Notificări Livrate", value: notifQ.isLoading ? "—" : notifQ.isError ? "—" : totalNotifs, icon: Bell,     color: "cyan" as const,  sub: "SMS · Email · Push" },
+{ title: "Notificări Livrate", value: notifQ.isLoading ? "—" : notifQ.isError ? "—" : totalNotifs, icon: Bell,     color: "cyan" as const,  sub: "SMS · Email · Push" },
         ].map((s, i) => (
           <div key={s.title} className={`fadeIn stagger-${i + 1}`}>
             <StatCard {...s} />

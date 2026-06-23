@@ -24,8 +24,6 @@ spec:
           env:
             - name: SERVER_PORT
               value: "8093"
-            - name: SPRING_MAIN_LAZY_INITIALIZATION
-              value: "true"
             - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
               value: kafka:9092
             - name: JAVA_TOOL_OPTIONS

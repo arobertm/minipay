@@ -1,6 +1,7 @@
 """
 Teste audit-svc: Merkle Tree hash chain + integritate imutabilă.
 """
+import time
 import pytest
 import requests
 from conftest import BASE_URL, CARD_APPROVED
@@ -50,12 +51,18 @@ class TestAuditLog:
         assert pay_resp.status_code in (200, 201)
         txn_id = pay_resp.json()["txnId"]
 
-        # Caută în audit log după txnId
-        audit_resp = requests.get(
-            f"{BASE_URL}/audit/entries/{txn_id}",
-            headers=auth_headers,
-            timeout=10,
-        )
+        # Kafka consumer is async — poll for up to 10s
+        audit_resp = None
+        for _ in range(5):
+            time.sleep(2)
+            audit_resp = requests.get(
+                f"{BASE_URL}/audit/entries/{txn_id}",
+                headers=auth_headers,
+                timeout=10,
+            )
+            if audit_resp.status_code == 200:
+                break
+
         assert audit_resp.status_code == 200, \
             f"Payment {txn_id} not found in audit log"
 

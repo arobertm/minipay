@@ -24,8 +24,6 @@ spec:
           env:
             - name: SERVER_PORT
               value: "8091"
-            - name: SPRING_MAIN_LAZY_INITIALIZATION
-              value: "true"
             - name: SPRING_DATASOURCE_URL
               value: jdbc:postgresql://postgres:5432/minipay_audit
             - name: SPRING_DATASOURCE_USERNAME

@@ -45,14 +45,18 @@ class TestNotifications:
         assert pay_resp.status_code in (200, 201)
         txn_id = pay_resp.json()["txnId"]
 
-        # Kafka consumer are nevoie de câteva secunde să proceseze
-        time.sleep(3)
+        # Kafka consumer is async — poll for up to 10s
+        resp = None
+        for _ in range(5):
+            time.sleep(2)
+            resp = requests.get(
+                f"{BASE_URL}/notif/notifications/{txn_id}",
+                headers=auth_headers,
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                break
 
-        resp = requests.get(
-            f"{BASE_URL}/notif/notifications/{txn_id}",
-            headers=auth_headers,
-            timeout=10,
-        )
         assert resp.status_code == 200, \
             f"No notification found for txnId {txn_id}"
         notifs = resp.json()

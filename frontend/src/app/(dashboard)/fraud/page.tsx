@@ -101,7 +101,7 @@ export default function FraudPage() {
     <div className="space-y-8 p-6">
       <div className="fadeIn">
         <h1 className="text-4xl font-display font-bold text-foreground">Detecție Fraudă</h1>
-        <p className="text-foreground/60 text-base mt-2 font-medium">Model XGBoost · Explicabilitate SHAP (GDPR Art. 22)</p>
+        <p className="text-foreground/60 text-base mt-2 font-medium">Model XGBoost · Explicabilitate SHAP</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -166,7 +166,7 @@ export default function FraudPage() {
               </div>
               {result.reasons.length > 0 && (
                 <div className="space-y-2 pt-2 border-t border-border/30">
-                  <span className="text-xs font-semibold text-foreground/40 uppercase tracking-widest">Motive (GDPR Art.22)</span>
+                  <span className="text-xs font-semibold text-foreground/40 uppercase tracking-widest">Motive</span>
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {result.reasons.map((r) => (
                       <span key={r} className="text-xs px-2.5 py-1 rounded-md bg-foreground/5 text-foreground/60 border border-border/30">{r}</span>
@@ -182,12 +182,9 @@ export default function FraudPage() {
       {/* SHAP Explanation */}
       {result && result.shap_details.length > 0 && (
         <div className="card-premium fadeIn">
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-base font-display font-semibold">Contribuții SHAP per Feature</h2>
+          <div className="flex items-center gap-3 mb-6">
+            <h2 className="text-base font-display font-semibold">Contribuții SHAP per Caracteristică</h2>
           </div>
-          <p className="text-xs text-foreground/40 mb-6">
-            Barele roșii cresc riscul de fraudă · Barele verzi îl reduc · Sortate după impact absolut
-          </p>
           <ShapChart shapDetails={result.shap_details} />
         </div>
       )}
